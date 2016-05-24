@@ -1,0 +1,16 @@
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\AvalExpressoes\bin\Debug\CCompiler.Common.dll
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\AvalExpressoes\bin\Debug\CCompiler.Common.pdb
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\AvalExpressoes\obj\Debug\CCompiler.Console.csprojResolveAssemblyReference.cache
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\AvalExpressoes\bin\Debug\CCompiler.Console.exe.config
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\AvalExpressoes\bin\Debug\CCompiler.Console.exe
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\AvalExpressoes\bin\Debug\CCompiler.Console.pdb
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\AvalExpressoes\obj\Debug\CCompiler.Console.exe
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\AvalExpressoes\obj\Debug\CCompiler.Console.pdb
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\CCompiler.Console\bin\Debug\CCompiler.Console.exe.config
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\CCompiler.Console\bin\Debug\CCompiler.Console.exe
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\CCompiler.Console\bin\Debug\CCompiler.Console.pdb
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\CCompiler.Console\bin\Debug\CCompiler.Common.dll
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\CCompiler.Console\bin\Debug\CCompiler.Common.pdb
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\CCompiler.Console\obj\Debug\CCompiler.Console.csprojResolveAssemblyReference.cache
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\CCompiler.Console\obj\Debug\CCompiler.Console.exe
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\CCompiler.Console\obj\Debug\CCompiler.Console.pdb

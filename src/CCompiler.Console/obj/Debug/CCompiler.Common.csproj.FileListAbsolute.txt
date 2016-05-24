@@ -1,0 +1,3 @@
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\AvalExpressoes\bin\Debug\AvalExpressoes.exe.config
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\AvalExpressoes\obj\Debug\AvalExpressoes.exe
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\AvalExpressoes\obj\Debug\AvalExpressoes.pdb

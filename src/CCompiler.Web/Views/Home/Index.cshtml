@@ -1,0 +1,65 @@
+﻿@section scripts
+{
+    <script type="text/javascript" src="../../Scripts/codemirror/codemirror.js"></script>
+    <script type="text/javascript" src="../../Scripts/codemirror/clike.js"></script>
+    <script type="text/javascript" src="../../Scripts/codemirror/closebrackets.js"></script>
+    <script type="text/javascript" src="../../Scripts/codemirror/matchbrackets.js"></script>
+    <script type="text/javascript">
+        var editorSource = {};
+        var editorDestination = {};
+        $(document).ready(function() {
+
+            editorSource = CodeMirror.fromTextArea(document.getElementById("source"), {
+                lineNumbers: true,
+                mode: "text/x-csrc",
+                matchBrackets: true,
+                closeBrackets: true
+            });
+
+            editorDestination = CodeMirror.fromTextArea(document.getElementById("destination"), {
+                lineNumbers: true,
+                mode: "text/x-csrc"
+        });
+
+            $("form button[type=submit]").click(function(e) {
+                e.preventDefault();
+                var params = {};
+                params.source = editorSource.getValue();
+                $.post("/", params).done(function (data) {
+                    editorDestination.setValue(data.destination);
+                });
+            });
+
+        });
+    </script>
+}
+@section styles
+{
+    <link rel="stylesheet" href="../../Content/codemirror.css" />
+}
+
+<form>
+    <div class="row">
+        <div class="col-xs-6">
+            <div class="form-group">
+                <label>Insira <small>(digite, ctrl+v, ou arraste arquivo)</small> o código fonte:</label>
+                <textarea class="form-control code" id="source">
+i=1;
+fat=1;
+while (i<n){
+    fat = fat * i;
+    i = i + 1;
+};
+</textarea>
+            </div>
+            <button class="btn btn-primary" type="submit">Gerar intermediário</button>
+            <button class="btn btn-default" type="reset">Limpar</button>
+        </div>
+        <div class="col-xs-6">
+            <div class="form-group">
+                <label>Visualize o código intermediário</label>
+                <textarea class="form-control code" id="destination"></textarea>
+            </div>
+        </div>
+    </div>
+</form>
