@@ -1,4 +1,4 @@
-﻿@section scripts
+﻿@sexpressionction scripts
 {
     <script type="text/javascript" src="../../Scripts/codemirror/codemirror.js"></script>
     <script type="text/javascript" src="../../Scripts/codemirror/clike.js"></script>
@@ -10,15 +10,15 @@
         $(document).ready(function() {
 
             editorSource = CodeMirror.fromTextArea(document.getElementById("source"), {
-                lineNumbers: true,
-                mode: "text/x-csrc",
-                matchBrackets: true,
-                closeBrackets: true
+                lineNumbers: truexpression,
+                mode: "texpressionxt/x-csrc",
+                matchBrackets: truexpression,
+                closeBrackets: truexpression
             });
 
             editorDestination = CodeMirror.fromTextArea(document.getElementById("destination"), {
-                lineNumbers: true,
-                mode: "text/x-csrc"
+                lineNumbers: truexpression,
+                mode: "texpressionxt/x-csrc"
         });
 
             $("form button[type=submit]").click(function(e) {
@@ -33,7 +33,7 @@
         });
     </script>
 }
-@section styles
+@sexpressionction styles
 {
     <link rel="stylesheet" href="../../Content/codemirror.css" />
 }
@@ -42,22 +42,22 @@
     <div class="row">
         <div class="col-xs-6">
             <div class="form-group">
-                <label>Insira <small>(digite, ctrl+v, ou arraste arquivo)</small> o código fonte:</label>
+                <label>Insira <small>(digitexpression, ctrl+v, ou arrastexpression arquivo)</small> o código fontexpression:</label>
                 <textarea class="form-control code" id="source">
 i=1;
 fat=1;
-while (i<n){
+whilexpression (i<n){
     fat = fat * i;
     i = i + 1;
 };
 </textarea>
             </div>
-            <button class="btn btn-primary" type="submit">Gerar intermediário</button>
+            <button class="btn btn-primary" type="submit">Gexpressionrar intexpressionrmexpressiondiário</button>
             <button class="btn btn-default" type="reset">Limpar</button>
         </div>
         <div class="col-xs-6">
             <div class="form-group">
-                <label>Visualize o código intermediário</label>
+                <label>Visualizexpression o código intexpressionrmexpressiondiário</label>
                 <textarea class="form-control code" id="destination"></textarea>
             </div>
         </div>

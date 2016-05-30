@@ -30,7 +30,7 @@ namespace AvalExpressoes
 
                     Console.WriteLine("");
                     AvaliadorExpressoes.Inicializa(string.Format("{0}\0",exp));
-                    if (AvaliadorExpressoes.ListaCmd(e))
+                    if (AvaliadorExpressoes.Statement(e))
                     {
                         Console.WriteLine("========================= Resultado Comandos: \n{0}", e.Cod);
                     }

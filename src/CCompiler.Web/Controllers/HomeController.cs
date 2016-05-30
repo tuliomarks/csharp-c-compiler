@@ -25,7 +25,7 @@ namespace AvalExpressoes.Web.Controllers
 
             var destination = new Campo();          
             AvaliadorExpressoes.Inicializa(string.Format("{0}\0", source));
-            if (AvaliadorExpressoes.Cmd(destination))          
+            if (AvaliadorExpressoes.Statement(destination))          
                 return Json(new {destination = destination.Cod});
 
             return Json(new { destination = "SINTAXE INCORRETA!!!" });
