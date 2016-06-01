@@ -14,6 +14,7 @@ namespace CCompiler.Common
         public static int LinhaTokenAtual { get; set; }
         public static int ColunaTokenAtual { get; set; }
         public static List<string> TokensAguardados { get; set; }
+        public static List<Exception> Exceptions { get; set; }
 
         public static void Inicializar(string exp)
         {
@@ -23,6 +24,7 @@ namespace CCompiler.Common
             Linha = 1;
             Coluna = 1;
             TokensAguardados = new List<string>();
+            Exceptions = new List<Exception>();
             Exp = exp.ToCharArray();
             LerToken();
         }
@@ -545,7 +547,9 @@ namespace CCompiler.Common
 
         private static void GerarExcessao(string[] esperava)
         {
-            throw new Exception(string.Format("({0},{1}) Esperava {2} e encontrou \"{3}\"", LinhaTokenAtual, ColunaTokenAtual, esperava.Aggregate((a, b) => a + ", " + b), TokenAtual));
+            Exceptions.Add(
+                new Exception(string.Format("({0},{1}) Esperava {2} e encontrou \"{3}\"", LinhaTokenAtual,
+                    ColunaTokenAtual, esperava.Aggregate((a, b) => a + ", " + b), TokenAtual)));
         }
 
         #endregion
@@ -612,7 +616,9 @@ namespace CCompiler.Common
                 {
                     if (VerificarToken(TkPontoVirgula))
                     {
+                        LerToken();
                         declaration.Cod = declaratorList.Cod;
+                        return true;
                     }
                 }
             }
@@ -686,6 +692,7 @@ namespace CCompiler.Common
                 if (DeclaratorListRec(declaratorListRecH, declaratorListRecS))
                 {
                     declaratorList.Cod = declaratorListRecS.Cod;
+                    return true;
                 }
             }
             return false;
@@ -701,11 +708,12 @@ namespace CCompiler.Common
                 LerToken();
                 if (InitDeclarator(initDeclarator))
                 {
-                    declaratorListRec1H.Cod = declaratorListRecH.Cod;
-                    declaratorListRec1H.Cod += EscreverCodigo(initDeclarator.Cod);
+                    declaratorListRec1H.Cod += EscreverCodigo(initDeclarator.Cod);    
+                    declaratorListRec1H.Cod += EscreverCodigo(declaratorListRecH.Cod);                                    
                     if (DeclaratorListRec(declaratorListRec1H, declaratorListRec1S))
                     {
                         declaratorListRecS.Cod = declaratorListRec1S.Cod;
+                        return true;
                     }
                 }
             }
@@ -1211,12 +1219,13 @@ namespace CCompiler.Common
             var statement = new Campo();
             if (Declaration(declaration))
             {
-                blockItem.Cod = EscreverCodigo(statement.Cod);
+                blockItem.Cod = EscreverCodigo(declaration.Cod);
                 if (Statement(statement))
                 {
                     blockItem.Cod += EscreverCodigo(statement.Cod);
                     return true;
                 }
+                return true;
             }
             return false;
 
@@ -2065,7 +2074,8 @@ namespace CCompiler.Common
             var expression = new Campo();
             if (VerificarToken(TkConst))
             {
-                primaryExpression.Place = TokenAtual;
+                primaryExpression.Place = GerarTemp();
+                primaryExpression.Cod = EscreverCodigo(string.Empty, primaryExpression.Place, TokenAtual, string.Empty);
                 LerToken();
                 return true;
             }
