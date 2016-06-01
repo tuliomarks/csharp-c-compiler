@@ -13,7 +13,7 @@ namespace AvalExpressoes
         {
             string comando = string.Empty;
 
-            while(comando != "E")
+            while (comando != "E")
             {
                 Console.Clear();
                 Console.WriteLine("Digite a expressao ou nome do arquivo:");
@@ -29,20 +29,22 @@ namespace AvalExpressoes
                     }
 
                     Console.WriteLine("");
-                    AvaliadorExpressoes.Inicializa(string.Format("{0}\0",exp));
-                    if (AvaliadorExpressoes.Statement(e))
+                    AvaliadorExpressoes.Inicializar(string.Format("{0}\0", exp));
+                    try
                     {
-                        Console.WriteLine("========================= Resultado Comandos: \n{0}", e.Cod);
+                        if (AvaliadorExpressoes.Statement(e))
+                            Console.WriteLine("==== Resultado Comandos C3E: \n{0}", e.Cod);
+                        else
+                            Console.WriteLine("==== Sintaxe incorreta em ({0}, {1}) {2}", AvaliadorExpressoes.LinhaTokenAtual, AvaliadorExpressoes.ColunaTokenAtual, AvaliadorExpressoes.TokenAtual);
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        Console.WriteLine("SINTAXE ERRADA!");
+                        Console.WriteLine(ex.Message);
                     }
-                    
                 }
                 Console.WriteLine("ENTER para continuar...");
                 comando = Console.ReadLine();
-            }                             
+            }
         }
     }
 }

@@ -24,7 +24,7 @@ namespace AvalExpressoes.Web.Controllers
         {
 
             var destination = new Campo();          
-            AvaliadorExpressoes.Inicializa(string.Format("{0}\0", source));
+            AvaliadorExpressoes.Inicializar(string.Format("{0}\0", source));
             if (AvaliadorExpressoes.Statement(destination))          
                 return Json(new {destination = destination.Cod});
 

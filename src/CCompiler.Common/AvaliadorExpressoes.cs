@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Data.SqlTypes;
+using System.Linq;
 using System.Linq.Expressions;
 
 namespace CCompiler.Common
@@ -9,14 +11,20 @@ namespace CCompiler.Common
 
         public static int IdTokenAtual { get; set; }
         public static string TokenAtual { get; set; }
+        public static int LinhaTokenAtual { get; set; }
+        public static int ColunaTokenAtual { get; set; }
+        public static List<string> TokensAguardados { get; set; }
 
-        public static void Inicializa(string exp)
+        public static void Inicializar(string exp)
         {
-            TempCount = 0;
-            LabelCount = 0;
+            TempContador = 0;
+            RotuloContador = 0;
             Pos = 0;
+            Linha = 1;
+            Coluna = 1;
+            TokensAguardados = new List<string>();
             Exp = exp.ToCharArray();
-            LeToken();
+            LerToken();
         }
 
         public static int MemoriaBase { get; set; }
@@ -49,15 +57,15 @@ namespace CCompiler.Common
         private const int TkFimArquivo = 106;
         private const int TkAbreParentese = 107;
         private const int TkFechaParentese = 108;
-        private const int TkMais = 109;
-        private const int TkMenos = 110;
-        private const int TkAsterisco = 111;
-        private const int TkBarraDivisao = 112;
+        private const int TkAddiction = 109;
+        private const int TkSubtraction = 110;
+        private const int TkMultiplication = 111;
+        private const int TkDivision = 112;
         private const int TkDoisPontos = 113;
         private const int TkIgual = 114;
         private const int TkAbreChaves = 115;
         private const int TkFechaChaves = 116;
-        private const int TkAtribuicao = 117;
+        private const int TkAssignment = 117;
         private const int TkMaior = 118;
         private const int TkMaiorIgual = 119;
         private const int TkMenor = 120;
@@ -68,16 +76,22 @@ namespace CCompiler.Common
         private const int TkLogicalAnd = 125; // &&
         private const int TkOr = 126; // |
         private const int TkLogicalOr = 127; // ||
-        private const int TkMaisMais = 128; // ++
-        private const int TkMenosMenos = 129; // --
-        private const int TkPercentual = 130; // --
+        private const int TkDoublePlus = 128; // ++
+        private const int TkDoubleMinus = 129; // --
+        private const int TkRemainder = 130; // --
         private const int TkExclusiveOr = 131; // --
-
+        private const int TkMultiplicationAssignment = 132; // *=
+        private const int TkDivisionAssignment = 133; // /=
+        private const int TkAdditionAssignment = 134; // +=
+        private const int TkSubtractionAssignment = 135; // -=
+        private const int TkRemainderAssignment = 136; // -=
 
         private static char[] Exp { get; set; }
         private static int Pos { get; set; }
+        private static int Linha { get; set; }
+        private static int Coluna { get; set; }
 
-        private static void LeToken()
+        private static void LerToken()
         {
             int estado = 0;
             char? c = Exp[Pos];
@@ -86,130 +100,135 @@ namespace CCompiler.Common
             {
                 if (estado == 0)
                 {
-                    if (c == '{')
-                    {
-                        LeChar();
-                        IdTokenAtual = TkAbreChaves;
-                        break;
-                    }
-                    if (c == '}')
-                    {
-                        LeChar();
-                        IdTokenAtual = TkFechaChaves;
-                        break;
-                    }
-                    if (c == ',')
-                    {
-                        LeChar();
-                        IdTokenAtual = TkVirgula;
-                        break;
-                    }
-                    if (c == ':')
-                    {
-                        LeChar();
-                        IdTokenAtual = TkDoisPontos;
-                        break;
-                    }
+                    LinhaTokenAtual = Linha;
+                    ColunaTokenAtual = Coluna;
+
+                    TokenAtual = c.ToString();
                     if (c == '!')
                     {
-                        c = LeChar();
+                        c = LerChar();
                         estado = 5;
                         continue;
                     }
                     if (c == '=')
                     {
-                        c = LeChar();
+                        c = LerChar();
                         estado = 2;
                         continue;
                     }
                     if (c == '>')
                     {
-                        c = LeChar();
+                        c = LerChar();
                         estado = 3;
                         continue;
                     }
                     if (c == '<')
                     {
-                        c = LeChar();
+                        c = LerChar();
                         estado = 4;
                         continue;
                     }
                     if (c == '&')
                     {
-                        c = LeChar();
+                        c = LerChar();
                         estado = 6;
                         continue;
                     }
                     if (c == '|')
                     {
-                        c = LeChar();
+                        c = LerChar();
                         estado = 7;
                         continue;
                     }
                     if (c == '+')
                     {
-                        c = LeChar();
+                        c = LerChar();
                         estado = 8;
                         continue;
                     }
                     if (c == '-')
                     {
-                        c = LeChar();
+                        c = LerChar();
                         estado = 9;
                         continue;
                     }
                     if (c == '/')
                     {
-                        c = LeChar();
+                        c = LerChar();
                         estado = 10;
                         continue;
                     }
+                    if (c == '*')
+                    {
+                        c = LerChar();
+                        estado = 13;
+                        continue;
+                    }
+                    if (c == '%')
+                    {
+                        c = LerChar();
+                        estado = 14;
+                        continue;
+                    }
 
+                    /* de 1 unico char */
+                    if (c == '{')
+                    {
+                        LerChar();
+                        IdTokenAtual = TkAbreChaves;
+                        break;
+                    }
+                    if (c == '}')
+                    {
+                        LerChar();
+                        IdTokenAtual = TkFechaChaves;
+                        break;
+                    }
+                    if (c == ',')
+                    {
+                        LerChar();
+                        IdTokenAtual = TkVirgula;
+                        break;
+                    }
+                    if (c == ':')
+                    {
+                        LerChar();
+                        IdTokenAtual = TkDoisPontos;
+                        break;
+                    }
                     if (c == ';')
                     {
-                        LeChar();
+                        LerChar();
                         IdTokenAtual = TkPontoVirgula;
                         break;
                     }
                     if (c == '(')
                     {
-                        LeChar();
+                        LerChar();
                         IdTokenAtual = TkAbreParentese;
                         break;
                     }
                     if (c == ')')
                     {
-                        LeChar();
+                        LerChar();
                         IdTokenAtual = TkFechaParentese;
                         break;
                     }
                     if (c == '[')
                     {
-                        LeChar();
+                        LerChar();
                         IdTokenAtual = TkAbreColch;
                         break;
                     }
                     if (c == ']')
                     {
-                        LeChar();
+                        LerChar();
                         IdTokenAtual = TkFechaColch;
-                        break;
-                    }
-                    if (c == '*')
-                    {
-                        LeChar();
-                        IdTokenAtual = TkAsterisco;
-                        break;
-                    }
-                    if (c == '%')
-                    {
-                        LeChar();
-                        IdTokenAtual = TkPercentual;
                         break;
                     }
                     if (c == '^')
                     {
-                        LeChar();
+                        LerChar();
                         IdTokenAtual = TkExclusiveOr;
                         break;
                     }
@@ -221,19 +240,17 @@ namespace CCompiler.Common
 
                     if (c >= '0' && c <= '9')
                     {
-                        TokenAtual = c.ToString();
-                        c = LeChar();
+                        c = LerChar();
                         estado = 1;
                     }
                     else if (c >= 'a' && c <= 'z' || c == '_')
                     {
-                        TokenAtual = c.ToString();
-                        c = LeChar();
+                        c = LerChar();
                         estado = 1;
                     }
                     else if (c == null || c == '\n' || c == '\r' || c == '\t' || c == ' ')
                     {
-                        c = LeChar();
+                        c = LerChar();
                     }
                 }
                 else if (estado == 1)
@@ -241,7 +258,7 @@ namespace CCompiler.Common
                     if (c >= 'a' && c <= 'z' || c == '_' || c >= '0' && c <= '9')
                     {
                         TokenAtual += c;
-                        c = LeChar();
+                        c = LerChar();
                     }
                     else
                     {
@@ -253,14 +270,14 @@ namespace CCompiler.Common
                 {
                     if (c == '=')
                     {
-                        LeChar();
+                        LerChar();
                         IdTokenAtual = TkIgual;
                         break;
                     }
                     else
                     {
                         // nesse caso é uma atribuicao
-                        IdTokenAtual = TkAtribuicao;
+                        IdTokenAtual = TkAssignment;
                         break;
                     }
                 }
@@ -268,7 +285,7 @@ namespace CCompiler.Common
                 {
                     if (c == '=')
                     {
-                        LeChar();
+                        LerChar();
                         IdTokenAtual = TkMaiorIgual;
                         break;
                     }
@@ -282,7 +299,7 @@ namespace CCompiler.Common
                 {
                     if (c == '=')
                     {
-                        LeChar();
+                        LerChar();
                         IdTokenAtual = TkMenorIgual;
                         break;
                     }
@@ -296,7 +313,7 @@ namespace CCompiler.Common
                 {
                     if (c == '=')
                     {
-                        LeChar();
+                        LerChar();
                         IdTokenAtual = TkDiferente;
                         break;
                     }
@@ -310,7 +327,7 @@ namespace CCompiler.Common
                 {
                     if (c == '&')
                     {
-                        LeChar();
+                        LerChar();
                         IdTokenAtual = TkLogicalAnd;
                         break;
                     }
@@ -324,7 +341,7 @@ namespace CCompiler.Common
                 {
                     if (c == '|')
                     {
-                        LeChar();
+                        LerChar();
                         IdTokenAtual = TkLogicalOr;
                         break;
                     }
@@ -338,13 +355,19 @@ namespace CCompiler.Common
                 {
                     if (c == '+')
                     {
-                        LeChar();
-                        IdTokenAtual = TkMaisMais;
+                        LerChar();
+                        IdTokenAtual = TkDoublePlus;
+                        break;
+                    }
+                    else if (c == '=')
+                    {
+                        LerChar();
+                        IdTokenAtual = TkAdditionAssignment;
                         break;
                     }
                     else
                     {
-                        IdTokenAtual = TkMais;
+                        IdTokenAtual = TkAddiction;
                         break;
                     }
                 }
@@ -352,14 +375,20 @@ namespace CCompiler.Common
                 {
                     if (c == '-')
                     {
-                        LeChar();
-                        IdTokenAtual = TkMenosMenos;
+                        LerChar();
+                        IdTokenAtual = TkDoubleMinus;
+                        break;
+                    }
+                    else if (c == '=')
+                    {
+                        LerChar();
+                        IdTokenAtual = TkSubtractionAssignment;
                         break;
                     }
                     else
                     {
                         // nesse caso é uma atribuicao
-                        IdTokenAtual = TkMenos;
+                        IdTokenAtual = TkSubtraction;
                         break;
                     }
                 }
@@ -367,20 +396,26 @@ namespace CCompiler.Common
                 {
                     if (c == '/')
                     {
-                       c = LeChar(); // commentario
+                        c = LerChar(); // commentario
                         estado = 11;
                         continue;
                     }
                     else if (c == '*')
                     {
-                        c = LeChar(); // commentario multilinhas
+                        c = LerChar(); // commentario multilinhas
                         estado = 12;
                         continue;
+                    }
+                    else if (c == '=')
+                    {
+                        LerChar();
+                        IdTokenAtual = TkDivisionAssignment;
+                        break;
                     }
                     else
                     {
                         // nesse caso é uma atribuicao
-                        IdTokenAtual = TkBarraDivisao;
+                        IdTokenAtual = TkDivision;
                         break;
                     }
                 }
@@ -388,19 +423,50 @@ namespace CCompiler.Common
                 {
                     if (c == '\n')
                         estado = 0;
-                    c = LeChar();
+                    c = LerChar();
+                    continue;
                 }
                 else if (estado == 12)
                 {
                     if (c == '*')
                     {
-                        c = LeChar();
+                        c = LerChar();
                         if (c == '/')
                         {
                             estado = 0;
                         }
                     }
-                    c = LeChar();
+                    c = LerChar();
+                }
+                else if (estado == 13)
+                {
+                    if (c == '=')
+                    {
+                        LerChar();
+                        IdTokenAtual = TkMultiplicationAssignment;
+                        break;
+                    }
+                    else
+                    {
+                        // nesse caso é uma atribuicao
+                        IdTokenAtual = TkMultiplication;
+                        break;
+                    }
+                }
+                else if (estado == 14)
+                {
+                    if (c == '=')
+                    {
+                        LerChar();
+                        IdTokenAtual = TkRemainderAssignment;
+                        break;
+                    }
+                    else
+                    {
+                        // nesse caso é uma atribuicao
+                        IdTokenAtual = TkRemainder;
+                        break;
+                    }
                 }
 
             }
@@ -420,12 +486,19 @@ namespace CCompiler.Common
             return TkId;
         }
 
-        private static char LeChar()
+        private static char LerChar()
         {
 
             if (Pos >= Exp.Length) return '\0'; // fim da leitura geral
             Pos++;
             var c = Exp[Pos];
+
+            Coluna++;
+            if (c == '\n')
+            {
+                Linha++;
+                Coluna = 1;
+            }
 
             return c;
         }
@@ -433,12 +506,12 @@ namespace CCompiler.Common
 
         #region Formata Texto
 
-        public static string EscreveRotulo(string rotulo)
+        public static string EscreverRotulo(string rotulo)
         {
             return string.Format("{0}: \n", rotulo);
         }
 
-        public static string EscreveCodigo(string format, params object[] args)
+        public static string EscreverCodigo(string format, params object[] args)
         {
             if (!string.IsNullOrEmpty(format) && args.Length == 0)
                 return string.Format("{0}", format);
@@ -450,37 +523,47 @@ namespace CCompiler.Common
 
             return string.Format(format, args);
         }
-        public static string EscreveCodigo(string comando, string atribuido, string op1, string op2)
+        public static string EscreverCodigo(string comando, string atribuido, string op1, string op2)
         {
             return string.Format("{0} := {1}{2}{3}\n", atribuido, op1, comando, op2);
         }
 
-        public static string EscreveCodigoIf(string expressao, string gotoLabel)
+        public static string EscreverCodigoIf(string expressao, string gotoLabel)
         {
             return string.Format("if {0} goto {1}\n", expressao, gotoLabel);
         }
 
-        public static string EscreveCodigoIfZ(string expressao, string gotoLabel)
+        public static string EscreverCodigoIfZ(string expressao, string gotoLabel)
         {
             return string.Format("ifZ {0} goto {1}\n", expressao, gotoLabel);
         }
 
-        #endregion
-
-        private static int TempCount { get; set; }
-
-        private static string GeraRegTemp()
+        private static bool VerificarToken(int token)
         {
-            TempCount++;
-            return "T" + TempCount;
+            return token == IdTokenAtual;
         }
 
-        private static int LabelCount { get; set; }
-
-        private static string GeraLabel()
+        private static void GerarExcessao(string[] esperava)
         {
-            LabelCount++;
-            return "L" + LabelCount;
+            throw new Exception(string.Format("({0},{1}) Esperava {2} e encontrou \"{3}\"", LinhaTokenAtual, ColunaTokenAtual, esperava.Aggregate((a, b) => a + ", " + b), TokenAtual));
+        }
+
+        #endregion
+
+        private static int TempContador { get; set; }
+
+        private static string GerarTemp()
+        {
+            TempContador++;
+            return "T" + TempContador;
+        }
+
+        private static int RotuloContador { get; set; }
+
+        private static string GerarRotulo()
+        {
+            RotuloContador++;
+            return "L" + RotuloContador;
         }
 
         private static int GerarEndereco(int tamanho)
@@ -498,18 +581,202 @@ namespace CCompiler.Common
         }
 
         // ----------------------------------------------------
-        /****
-         implementar a declaração de variaveis
-        ****/
-        // Dec -> Tipo {DecLista.TipoVar = Tipo.TipoVar; DecLista.TamanhoVar = Tipo.TamanhoVar} DecLista;
-        // Tipo -> short int {Tipo.TipoVar = short int; Tipo.TamanhoVar = 2}
-        // Tipo -> int {Tipo.TipoVar = int ; Tipo.TamanhoVar = 4}
-        // Tipo -> long int {Tipo.TipoVar = long int; Tipo.TamanhoVar = 4}
-        // Tipo -> long long int {Tipo.TipoVar = long long int; Tipo.TamanhoVar = 8}
-        // Tipo -> double {Tipo.TipoVar = double ; Tipo.TamanhoVar = 8}
-        // Tipo -> float {Tipo.TipoVar = float ; Tipo.TamanhoVar = 4}
-        // DecLista -> id {PoeVariavel(id, ListaDim.ListaVar, endereco); endereco += ListaDim.TamanhoVar;}  {RestoDecLista.TipoVar = DecLista.TipoVar; RestoDecLista.TamanhoVar = DecLista.TamanhoVar;}  RestoDecLista
-        // RestoDecLista -> , {DecLista.TipoVar =  RestoDecLista.TipoVar, DecLista.TamanhoVar =  RestoDecLista.TamanhoVar} DecLista
+        // Declaration -> TypeSpecifier DeclaratorList;
+        // DeclaratorList -> InitDeclarator DeclaratorListRec
+        // DeclaratorListRec -> , InitDeclarator DeclaratorListRec
+        // DeclaratorListRec -> <vazio>
+
+        // InitDeclarator -> Declarator = AssignmentExpression
+        // InitDeclarator -> Declarator
+
+        // Declarator -> id 
+        // Declarator -> ( id )
+
+        // TypeSpecifier -> void
+        // TypeSpecifier -> char
+        // TypeSpecifier -> short
+        // TypeSpecifier -> int
+        // TypeSpecifier -> long
+        // TypeSpecifier -> long int 
+        // TypeSpecifier -> long long int
+        // TypeSpecifier -> float
+        // TypeSpecifier -> double
+
+        public static bool Declaration(Campo declaration)
+        {
+            var typeSpecifier = new Campo();
+            var declaratorList = new Campo();
+            if (TypeSpecifier(typeSpecifier))
+            {
+                if (DeclaratorList(declaratorList))
+                {
+                    if (VerificarToken(TkPontoVirgula))
+                    {
+                        declaration.Cod = declaratorList.Cod;
+                    }
+                }
+            }
+            return false;
+        }
+
+        public static bool TypeSpecifier(Campo typeSpecifier)
+        {
+            if (VerificarToken(TkChar))
+            {
+                LerToken();
+                typeSpecifier.Type = "char";
+                return true;
+            }
+            if (VerificarToken(TkShort))
+            {
+                LerToken();
+                typeSpecifier.Type = "short";
+                return true;
+            }
+            if (VerificarToken(TkInt))
+            {
+                LerToken();
+                typeSpecifier.Type = "int";
+                return true;
+            }
+            if (VerificarToken(TkLong))
+            {
+                LerToken();
+                typeSpecifier.Type = "long";
+                if (VerificarToken(TkLong))
+                {
+                    LerToken();
+                    typeSpecifier.Type += " long";
+                    if (VerificarToken(TkInt))
+                    {
+                        LerToken();
+                        typeSpecifier.Type += " int";
+                    }
+                }
+                else if (VerificarToken(TkInt))
+                {
+                    LerToken();
+                    typeSpecifier.Type += " int";
+                }
+                return true;
+            }
+            if (VerificarToken(TkFloat))
+            {
+                LerToken();
+                typeSpecifier.Type = "float";
+                return true;
+            }
+            if (VerificarToken(TkDouble))
+            {
+                LerToken();
+                typeSpecifier.Type = "double";
+                return true;
+            }
+            return false;
+        }
+
+        public static bool DeclaratorList(Campo declaratorList)
+        {
+            var initDeclarator = new Campo();
+            var declaratorListRecH = new Campo();
+            var declaratorListRecS = new Campo();
+            if (InitDeclarator(initDeclarator))
+            {
+                declaratorListRecH.Cod = initDeclarator.Cod;
+                if (DeclaratorListRec(declaratorListRecH, declaratorListRecS))
+                {
+                    declaratorList.Cod = declaratorListRecS.Cod;
+                }
+            }
+            return false;
+        }
+
+        public static bool DeclaratorListRec(Campo declaratorListRecH, Campo declaratorListRecS)
+        {
+            var initDeclarator = new Campo();
+            var declaratorListRec1H = new Campo();
+            var declaratorListRec1S = new Campo();
+            if (VerificarToken(TkVirgula))
+            {
+                LerToken();
+                if (InitDeclarator(initDeclarator))
+                {
+                    declaratorListRec1H.Cod = declaratorListRecH.Cod;
+                    declaratorListRec1H.Cod += EscreverCodigo(initDeclarator.Cod);
+                    if (DeclaratorListRec(declaratorListRec1H, declaratorListRec1S))
+                    {
+                        declaratorListRecS.Cod = declaratorListRec1S.Cod;
+                    }
+                }
+            }
+            else
+            {
+                declaratorListRecS.Cod = declaratorListRecH.Cod;
+                return true;
+            }
+            return false;
+        }
+
+        public static bool InitDeclarator(Campo initDeclarator)
+        {
+            var declarator = new Campo();
+            var assignmentExpression = new Campo();
+            if (Declarator(declarator))
+            {
+                if (VerificarToken(TkAssignment))
+                {
+                    LerToken();
+                    if (AssignmentExpression(assignmentExpression))
+                    {
+                        initDeclarator.Cod += EscreverCodigo(declarator.Cod);
+                        initDeclarator.Cod += EscreverCodigo(assignmentExpression.Cod);
+                        initDeclarator.Cod += EscreverCodigo(string.Empty, declarator.Place, assignmentExpression.Place, string.Empty);
+                        return true;
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
+
+        public static bool Declarator(Campo declarator)
+        {
+            var expression = new Campo();
+            if (VerificarToken(TkId))
+            {
+                declarator.Place = TokenAtual;
+                LerToken();
+                return true;
+            }
+            else if (VerificarToken(TkAbreParentese))
+            {
+                LerToken();
+                if (Expression(expression))
+                {
+                    if (IdTokenAtual == TkFechaParentese)
+                    {
+                        LerToken();
+                        declarator.Cod = expression.Cod;
+                        declarator.Place = expression.Place;
+                        return true;
+                    }
+                    GerarExcessao(new[] { ")" });
+                }
+            }
+            GerarExcessao(new[] { "identificador", "(" });
+            return false;
+        }
+
+        // ----------------------------------------------------
+        // Dec -> Tipo {DecLista.Type = Tipo.Type; DecLista.TamanhoVar = Tipo.TamanhoVar} DecLista;
+        // Tipo -> short int {Tipo.Type = short int; Tipo.TamanhoVar = 2}
+        // Tipo -> int {Tipo.Type = int ; Tipo.TamanhoVar = 4}
+        // Tipo -> long int {Tipo.Type = long int; Tipo.TamanhoVar = 4}
+        // Tipo -> long long int {Tipo.Type = long long int; Tipo.TamanhoVar = 8}
+        // Tipo -> double {Tipo.Type = double ; Tipo.TamanhoVar = 8}
+        // Tipo -> float {Tipo.Type = float ; Tipo.TamanhoVar = 4}
+        // DecLista -> id {PoeVariavel(id, ListaDim.ListaVar, endereco); endereco += ListaDim.TamanhoVar;}  {RestoDecLista.Type = DecLista.Type; RestoDecLista.TamanhoVar = DecLista.TamanhoVar;}  RestoDecLista
+        // RestoDecLista -> , {DecLista.Type =  RestoDecLista.Type, DecLista.TamanhoVar =  RestoDecLista.TamanhoVar} DecLista
         // RestoDecLista -> <vazio>   
 
         public static bool Dec(Campo dec)
@@ -520,7 +787,7 @@ namespace CCompiler.Common
             if (Tipo(tipo))
             {
                 decLista.TamanhoVar = tipo.TamanhoVar;
-                decLista.TipoVar = tipo.TipoVar;
+                decLista.Type = tipo.Type;
                 if (DecLista(decLista))
                 {
                     if (IdTokenAtual == TkPontoVirgula)
@@ -539,11 +806,11 @@ namespace CCompiler.Common
             var restoDecLista = new Campo();
             if (IdTokenAtual == TkId)
             {
-                LeToken();
-                AdicionarVariavelTabela(TokenAtual, decLista.TipoVar, GerarEndereco(decLista.TamanhoVar));
+                LerToken();
+                AdicionarVariavelTabela(TokenAtual, decLista.Type, GerarEndereco(decLista.TamanhoVar));
 
                 restoDecLista.TamanhoVar = decLista.TamanhoVar;
-                restoDecLista.TipoVar = decLista.TipoVar;
+                restoDecLista.Type = decLista.Type;
                 if (RestoDecLista(restoDecLista))
                 {
                     return true;
@@ -558,8 +825,8 @@ namespace CCompiler.Common
             var decLista = new Campo();
             if (IdTokenAtual == TkVirgula)
             {
-                LeToken();
-                decLista.TipoVar = restoDecLista.TipoVar;
+                LerToken();
+                decLista.Type = restoDecLista.Type;
                 decLista.TamanhoVar = restoDecLista.TamanhoVar;
 
                 if (DecLista(decLista))
@@ -576,48 +843,48 @@ namespace CCompiler.Common
         {
             if (IdTokenAtual == TkShort)
             {
-                LeToken();
-                tipo.TipoVar = "short";
+                LerToken();
+                tipo.Type = "short";
                 tipo.TamanhoVar = 2;
                 return true;
             }
             else if (IdTokenAtual == TkInt)
             {
-                LeToken();
-                tipo.TipoVar = "int";
+                LerToken();
+                tipo.Type = "int";
                 tipo.TamanhoVar = 4;
                 return true;
             }
             else if (IdTokenAtual == TkDouble)
             {
-                LeToken();
-                tipo.TipoVar = "double";
+                LerToken();
+                tipo.Type = "double";
                 tipo.TamanhoVar = 8;
                 return true;
             }
             else if (IdTokenAtual == TkFloat)
             {
-                LeToken();
-                tipo.TipoVar = "float";
+                LerToken();
+                tipo.Type = "float";
                 tipo.TamanhoVar = 4;
                 return true;
             }
             else if (IdTokenAtual == TkLong)
             {
-                LeToken();
+                LerToken();
                 if (IdTokenAtual == TkLong)
                 {
-                    LeToken();
+                    LerToken();
                     if (IdTokenAtual == TkInt)
                     {
-                        tipo.TipoVar = "long long int";
+                        tipo.Type = "long long int";
                         tipo.TamanhoVar = 8;
                         return true;
                     }
                 }
                 else
                 {
-                    tipo.TipoVar = "long int";
+                    tipo.Type = "long int";
                     tipo.TamanhoVar = 4;
                     return true;
                 }
@@ -634,20 +901,7 @@ namespace CCompiler.Common
 
         // ExpressionStatement -> Expression; | ;
 
-        // SelectionStatement -> if (E) CMD  | if (E) Statement  else Statement
-
-        // CMD -> if (E) CMD 
-        // CMD -> if (E) CMD else CMD
-        // CMD -> do CMD while (C)
-        // CMD -> while (C) CMD
-        // CMD -> break
-        // CMD -> continue
-        // CMD -> id = E       
-
-
-        // listaCmd -> CMD; listaCont
-        // listaCont -> CMD; listaCont
-        // listaCont -> <vazio>;                                 
+        // SelectionStatement -> if (E) CMD  | if (E) Statement  else Statement    
 
         // Expression -> AssigmentExpression ExpressionRec
         // ExpressionRec -> , AssigmentExpression ExpressionRec | <vazio>
@@ -656,10 +910,10 @@ namespace CCompiler.Common
 
         // AssigmentExpression -> = AssigmentExpression 
         // AssigmentExpression -> *= AssigmentExpression 
-        // AssigmentExpression -> /= AssigmentExpression 
-        // AssigmentExpression -> %= AssigmentExpression 
+        // AssigmentExpression -> /= AssigmentExpression       
         // AssigmentExpression -> += AssigmentExpression 
         // AssigmentExpression -> -= AssigmentExpression        
+        // AssigmentExpression -> %= AssigmentExpression        
 
         // LogicalOrExpression -> LogicalAndExpression LogicalOrExpressionRec
         // LogicalOrExpressionRec -> || LogicalAndExpression LogicalOrExpressionRec
@@ -702,33 +956,7 @@ namespace CCompiler.Common
         // MultiplicativeExpressionRec -> * PrimaryExpression MultiplicativeExpressionRec
         // MultiplicativeExpressionRec -> / PrimaryExpression MultiplicativeExpressionRec
         // MultiplicativeExpressionRec -> % PrimaryExpression MultiplicativeExpressionRec
-        // MultiplicativeExpressionRec -> <vazio>
-
-        // C -> E { RB.h = E.val} RB { C.val = RB.s }
-        // RB -> == E { RB1.s = RB.h + E.val} RB1 { RB.s = RB1.s } 
-        // RB -> != E { RB1.s = RB.h + E.val} RB1 { RB.s = RB1.s } 
-        // RB -> >= E { RB1.s = RB.h + E.val} RB1 { RB.s = RB1.s } 
-        // RB -> > E { RB1.s = RB.h + E.val} RB1 { RB.s = RB1.s } 
-        // RB -> <= E { RB1.s = RB.h + E.val} RB1 { RB.s = RB1.s } 
-        // RB -> < E { RB1.s = RB.h + E.val} RB1 { RB.s = RB1.s } 
-        // RB -> E { RB1.s = E.val} RB1 { RB.s = RB1.s }        
-        // RB -> <vazio> { RB.s = RB.h }           
-
-        // E -> T { R.h = T.val} R { E.val = R.s }
-        // R -> + T { R1.s = R.h + T.val} R1 { R.s = R1.s } 
-        // R -> - T { R1.s = R.h + T.val} R1 { R.s = R1.s } 
-        // R -> T { R1.s = T.val} R1 { R.s = R1.s }        
-        // R -> <vazio> { R.s = R.h }
-
-        // T -> F { RA.h = F.val} RA { T.val = RA.s }
-        // RA -> * F { RA1.s = RA.h * F.val} RA1 { RA.s = RA1.s } 
-        // RA -> / F { RA1.s = RA.h * F.val} RA1 { RA.s = RA1.s } 
-        // RA -> F { RA1.s = F.val} RA1 { RA.s = RA1.s }        
-        // RA -> <vazio> { R.s = R.h }
-
-        // F -> ( E ) { RA.h = F.val} RA { T.val = RA.s }
-        // F -> cte { F.val = cte.val }
-        // F -> id { F.val = cte.val }
+        // MultiplicativeExpressionRec -> <vazio>      
 
         // ----------------------------------------------------
 
@@ -743,42 +971,42 @@ namespace CCompiler.Common
             #region if
             if (IdTokenAtual == TkIf)
             {
-                LeToken();
+                LerToken();
                 if (IdTokenAtual == TkAbreParentese)
                 {
-                    LeToken();
+                    LerToken();
                     if (C(c))
                     {
                         if (IdTokenAtual == TkFechaParentese)
                         {
-                            LeToken();
+                            LerToken();
 
-                            cmd1.Rotulo1 = GeraLabel();
-                            cmd1.Rotulo2 = GeraLabel();
+                            cmd1.Rotulo1 = GerarRotulo();
+                            cmd1.Rotulo2 = GerarRotulo();
                             if (Statement(cmd1))
                             {
                                 if (IdTokenAtual == TkElse)
                                 {
-                                    LeToken();
+                                    LerToken();
 
                                     if (Statement(cmd2))
                                     {
-                                        statement.Cod += EscreveCodigo(c.Cod);
-                                        statement.Cod += EscreveCodigoIfZ(c.Place, cmd1.Rotulo1); // goto else                                    
-                                        statement.Cod += EscreveCodigo(cmd1.Cod);
-                                        statement.Cod += EscreveCodigo("goto {0}", cmd1.Rotulo2);
-                                        statement.Cod += EscreveRotulo(cmd1.Rotulo1);
-                                        statement.Cod += EscreveCodigo(cmd2.Cod);
-                                        statement.Cod += EscreveRotulo(cmd1.Rotulo2);
+                                        statement.Cod += EscreverCodigo(c.Cod);
+                                        statement.Cod += EscreverCodigoIfZ(c.Place, cmd1.Rotulo1); // goto else                                    
+                                        statement.Cod += EscreverCodigo(cmd1.Cod);
+                                        statement.Cod += EscreverCodigo("goto {0}", cmd1.Rotulo2);
+                                        statement.Cod += EscreverRotulo(cmd1.Rotulo1);
+                                        statement.Cod += EscreverCodigo(cmd2.Cod);
+                                        statement.Cod += EscreverRotulo(cmd1.Rotulo2);
                                         return true;
                                     }
                                 }
                                 else
                                 {
-                                    statement.Cod += EscreveCodigo(c.Cod);
-                                    statement.Cod += EscreveCodigoIfZ(c.Place, cmd1.Rotulo1); // goto else                                    
-                                    statement.Cod += EscreveCodigo(cmd1.Cod);
-                                    statement.Cod += EscreveRotulo(cmd1.Rotulo1);
+                                    statement.Cod += EscreverCodigo(c.Cod);
+                                    statement.Cod += EscreverCodigoIfZ(c.Place, cmd1.Rotulo1); // goto else                                    
+                                    statement.Cod += EscreverCodigo(cmd1.Cod);
+                                    statement.Cod += EscreverRotulo(cmd1.Rotulo1);
                                     return true;
                                 }
                             }
@@ -790,28 +1018,28 @@ namespace CCompiler.Common
             #region do while
             else if (IdTokenAtual == TkDo)
             {
-                LeToken();
-                cmd1.Rotulo1 = GeraLabel();
-                cmd1.Rotulo2 = GeraLabel();
+                LerToken();
+                cmd1.Rotulo1 = GerarRotulo();
+                cmd1.Rotulo2 = GerarRotulo();
                 if (Statement(cmd1))
                 {
                     if (IdTokenAtual == TkWhile)
                     {
-                        LeToken();
+                        LerToken();
                         if (IdTokenAtual == TkAbreParentese)
                         {
-                            LeToken();
+                            LerToken();
                             if (C(c))
                             {
                                 if (IdTokenAtual == TkFechaParentese)
                                 {
-                                    LeToken();
-                                    statement.Cod += EscreveRotulo(cmd1.Rotulo1);
-                                    statement.Cod += EscreveCodigo(cmd1.Cod);
-                                    statement.Cod += EscreveCodigo(c.Cod);
-                                    statement.Cod += EscreveCodigoIf(c.Place, cmd1.Rotulo1);
-                                    statement.Cod += EscreveCodigo("goto {0}", cmd1.Rotulo2);
-                                    statement.Cod += EscreveRotulo(cmd1.Rotulo2);
+                                    LerToken();
+                                    statement.Cod += EscreverRotulo(cmd1.Rotulo1);
+                                    statement.Cod += EscreverCodigo(cmd1.Cod);
+                                    statement.Cod += EscreverCodigo(c.Cod);
+                                    statement.Cod += EscreverCodigoIf(c.Place, cmd1.Rotulo1);
+                                    statement.Cod += EscreverCodigo("goto {0}", cmd1.Rotulo2);
+                                    statement.Cod += EscreverRotulo(cmd1.Rotulo2);
                                     return true;
                                 }
                             }
@@ -824,26 +1052,26 @@ namespace CCompiler.Common
             #region while
             else if (IdTokenAtual == TkWhile)
             {
-                LeToken();
+                LerToken();
                 if (IdTokenAtual == TkAbreParentese)
                 {
-                    LeToken();
+                    LerToken();
                     if (C(c))
                     {
                         if (IdTokenAtual == TkFechaParentese)
                         {
-                            LeToken();
+                            LerToken();
 
-                            cmd1.Rotulo1 = GeraLabel();
-                            cmd1.Rotulo2 = GeraLabel();
+                            cmd1.Rotulo1 = GerarRotulo();
+                            cmd1.Rotulo2 = GerarRotulo();
                             if (Statement(cmd1))
                             {
-                                statement.Cod += EscreveRotulo(cmd1.Rotulo1);
-                                statement.Cod += EscreveCodigo(c.Cod);
-                                statement.Cod += EscreveCodigoIfZ(c.Place, cmd1.Rotulo2);
-                                statement.Cod += EscreveCodigo(cmd1.Cod);
-                                statement.Cod += EscreveCodigo("goto {0}", cmd1.Rotulo1);
-                                statement.Cod += EscreveRotulo(cmd1.Rotulo2);
+                                statement.Cod += EscreverRotulo(cmd1.Rotulo1);
+                                statement.Cod += EscreverCodigo(c.Cod);
+                                statement.Cod += EscreverCodigoIfZ(c.Place, cmd1.Rotulo2);
+                                statement.Cod += EscreverCodigo(cmd1.Cod);
+                                statement.Cod += EscreverCodigo("goto {0}", cmd1.Rotulo1);
+                                statement.Cod += EscreverRotulo(cmd1.Rotulo2);
                                 return true;
                             }
                         }
@@ -859,8 +1087,8 @@ namespace CCompiler.Common
                 if (string.IsNullOrEmpty(statement.Rotulo2))
                     return false;
 
-                statement.Cod += EscreveCodigo("goto {0}", statement.Rotulo2);
-                LeToken();
+                statement.Cod += EscreverCodigo("goto {0}", statement.Rotulo2);
+                LerToken();
                 return true;
 
             }
@@ -871,8 +1099,8 @@ namespace CCompiler.Common
                 if (string.IsNullOrEmpty(statement.Rotulo1))
                     return false;
 
-                statement.Cod += EscreveCodigo("goto {0}", statement.Rotulo1);
-                LeToken();
+                statement.Cod += EscreverCodigo("goto {0}", statement.Rotulo1);
+                LerToken();
                 return true;
 
             }
@@ -880,21 +1108,21 @@ namespace CCompiler.Common
             else if (IdTokenAtual == TkId)
             {
                 statement.Place = TokenAtual;
-                LeToken();
-                if (IdTokenAtual == TkAtribuicao)
+                LerToken();
+                if (IdTokenAtual == TkAssignment)
                 {
-                    LeToken();
+                    LerToken();
                     if (E(e))
                     {
-                        statement.Cod += EscreveCodigo(e.Cod);
-                        statement.Cod += EscreveCodigo(string.Empty, statement.Place, e.Place, string.Empty);
+                        statement.Cod += EscreverCodigo(e.Cod);
+                        statement.Cod += EscreverCodigo(string.Empty, statement.Place, e.Place, string.Empty);
                         return true;
                     }
                 }
             }
             else if (IdTokenAtual == TkAbreChaves)
             {
-                LeToken();
+                LerToken();
 
                 // propaga os labels 
                 listacmd.Rotulo2 = statement.Rotulo2;
@@ -903,7 +1131,7 @@ namespace CCompiler.Common
                 {
                     if (IdTokenAtual == TkFechaChaves)
                     {
-                        LeToken();
+                        LerToken();
                         statement.Cod = listacmd.Cod;
                         return true;
                     }
@@ -923,14 +1151,14 @@ namespace CCompiler.Common
                 statement.Cod = compoundStatement.Cod;
                 return true;
             }
-            else if (ExpressionStatement(expressionStatement))
-            {
-                statement.Cod = expressionStatement.Cod;
-                return true;
-            }
             else if (SelectionStatement(selectionStatement))
             {
                 statement.Cod = selectionStatement.Cod;
+                return true;
+            }
+            else if (ExpressionStatement(expressionStatement))
+            {
+                statement.Cod = expressionStatement.Cod;
                 return true;
             }
             return false;
@@ -938,21 +1166,21 @@ namespace CCompiler.Common
 
         public static bool CompoundStatement(Campo compoundStatement)
         {
-            var statement = new Campo();
+            var blockItemList = new Campo();
 
-            if (IdTokenAtual == TkAbreChaves)
+            if (VerificarToken(TkAbreChaves))
             {
-                LeToken();
+                LerToken();
 
                 // propaga os labels 
-                statement.Rotulo2 = compoundStatement.Rotulo2;
-                statement.Rotulo1 = compoundStatement.Rotulo1;
-                if (Statement(statement))
+                blockItemList.Rotulo2 = compoundStatement.Rotulo2;
+                blockItemList.Rotulo1 = compoundStatement.Rotulo1;
+                if (BlockItemList(blockItemList))
                 {
-                    if (IdTokenAtual == TkFechaChaves)
+                    if (VerificarToken(TkFechaChaves))
                     {
-                        LeToken();
-                        compoundStatement.Cod = statement.Cod;
+                        LerToken();
+                        compoundStatement.Cod = blockItemList.Cod;
                         return true;
                     }
                 }
@@ -979,16 +1207,17 @@ namespace CCompiler.Common
 
         public static bool BlockItem(Campo blockItem)
         {
-            //var declaration = new Campo();
+            var declaration = new Campo();
             var statement = new Campo();
-            //if (Declaration(blockItem))
-            //{
-            if (Statement(statement))
+            if (Declaration(declaration))
             {
-                blockItem.Cod = statement.Cod;
-                return true;
+                blockItem.Cod = EscreverCodigo(statement.Cod);
+                if (Statement(statement))
+                {
+                    blockItem.Cod += EscreverCodigo(statement.Cod);
+                    return true;
+                }
             }
-            //}
             return false;
 
         }
@@ -1001,41 +1230,41 @@ namespace CCompiler.Common
 
             if (IdTokenAtual == TkIf)
             {
-                LeToken();
+                LerToken();
                 if (IdTokenAtual == TkAbreParentese)
                 {
-                    LeToken();
+                    LerToken();
                     if (C(c))
                     {
                         if (IdTokenAtual == TkFechaParentese)
                         {
-                            LeToken();
+                            LerToken();
 
-                            statement1.Rotulo1 = GeraLabel();
-                            statement1.Rotulo2 = GeraLabel();
+                            statement1.Rotulo1 = GerarRotulo();
+                            statement1.Rotulo2 = GerarRotulo();
                             if (Statement(statement1))
                             {
                                 if (IdTokenAtual == TkElse)
                                 {
-                                    LeToken();
+                                    LerToken();
                                     if (Statement(statement2))
                                     {
-                                        selectionStatement.Cod += EscreveCodigo(c.Cod);
-                                        selectionStatement.Cod += EscreveCodigoIfZ(c.Place, statement1.Rotulo1); // goto else                                    
-                                        selectionStatement.Cod += EscreveCodigo(statement1.Cod);
-                                        selectionStatement.Cod += EscreveCodigo("goto {0}", statement1.Rotulo2);
-                                        selectionStatement.Cod += EscreveRotulo(statement1.Rotulo1);
-                                        selectionStatement.Cod += EscreveCodigo(statement2.Cod);
-                                        selectionStatement.Cod += EscreveRotulo(statement1.Rotulo2);
+                                        selectionStatement.Cod += EscreverCodigo(c.Cod);
+                                        selectionStatement.Cod += EscreverCodigoIfZ(c.Place, statement1.Rotulo1); // goto else                                    
+                                        selectionStatement.Cod += EscreverCodigo(statement1.Cod);
+                                        selectionStatement.Cod += EscreverCodigo("goto {0}", statement1.Rotulo2);
+                                        selectionStatement.Cod += EscreverRotulo(statement1.Rotulo1);
+                                        selectionStatement.Cod += EscreverCodigo(statement2.Cod);
+                                        selectionStatement.Cod += EscreverRotulo(statement1.Rotulo2);
                                         return true;
                                     }
                                 }
                                 else
                                 {
-                                    selectionStatement.Cod += EscreveCodigo(c.Cod);
-                                    selectionStatement.Cod += EscreveCodigoIfZ(c.Place, statement1.Rotulo1); // goto else                                    
-                                    selectionStatement.Cod += EscreveCodigo(statement1.Cod);
-                                    selectionStatement.Cod += EscreveRotulo(statement1.Rotulo1);
+                                    selectionStatement.Cod += EscreverCodigo(c.Cod);
+                                    selectionStatement.Cod += EscreverCodigoIfZ(c.Place, statement1.Rotulo1); // goto else                                    
+                                    selectionStatement.Cod += EscreverCodigo(statement1.Cod);
+                                    selectionStatement.Cod += EscreverRotulo(statement1.Rotulo1);
                                     return true;
                                 }
                             }
@@ -1053,16 +1282,17 @@ namespace CCompiler.Common
             {
                 if (IdTokenAtual == TkPontoVirgula)
                 {
-                    LeToken();
+                    LerToken();
                     expressionStatement.Cod = expression.Cod;
                     return true;
                 }
             }
             else if (IdTokenAtual == TkPontoVirgula)
             {
-                LeToken();
+                LerToken();
                 return true;
             }
+            GerarExcessao(new[] { ";", "expressão" });
             return false;
         }
 
@@ -1090,9 +1320,9 @@ namespace CCompiler.Common
             var assignmentExpression = new Campo();
             var expressionRec1H = new Campo();
             var expressionRec1S = new Campo();
-            if (IdTokenAtual == TkVirgula)
+            if (VerificarToken(TkVirgula))
             {
-                LeToken();
+                LerToken();
                 if (AssignmentExpression(assignmentExpression))
                 {
                     expressionRec1H.Cod += expressionRecH.Cod;
@@ -1114,38 +1344,9 @@ namespace CCompiler.Common
             }
         }
 
-        /*
-        public static bool AssignmentExpression(Campo assignmentExpression)
-        {
-            var c = new Campo();
-            if (IdTokenAtual == TkId)
-            {
-                assignmentExpression.Place = TokenAtual;
-                LeToken();
-                if (IdTokenAtual == TkAtribuicao)
-                {
-                    LeToken();
-                    if (C(c))
-                    {
-                        assignmentExpression.Cod += EscreveCodigo(c.Cod);
-                        assignmentExpression.Cod += EscreveCodigo(string.Empty, assignmentExpression.Place, c.Place, string.Empty);
-                        return true;
-                    }
-                }
-            }
-            else if (LogicalOrExpression(logicalOrExpression))
-            {
-                
-            }
-            return false;
-        }
-
-         */
-
         public static bool AssignmentExpression(Campo assignmentExpression)
         {
             var logicalOrExpression = new Campo();
-            var assignmentOperator = new Campo();
             var assignmentExpression1 = new Campo();
 
             if (LogicalOrExpression(logicalOrExpression))
@@ -1153,26 +1354,66 @@ namespace CCompiler.Common
                 assignmentExpression.Cod = logicalOrExpression.Cod;
                 assignmentExpression.Place = logicalOrExpression.Place;
 
-                if (AssignmentOperator(assignmentOperator)) // identifica o tipo de operador
+                if (VerificarToken(TkAssignment)) // identifica atribuicao
                 {
+                    LerToken();
                     if (AssignmentExpression(assignmentExpression1))
                     {
-                        assignmentExpression.Cod += EscreveCodigo(assignmentExpression1.Cod);
-                        assignmentExpression.Cod += EscreveCodigo(string.Empty, logicalOrExpression.Place, assignmentExpression1.Place, string.Empty);
+                        assignmentExpression.Cod += EscreverCodigo(assignmentExpression1.Cod);
+                        assignmentExpression.Cod += EscreverCodigo(string.Empty, logicalOrExpression.Place, assignmentExpression1.Place, string.Empty);
                         return true;
                     }
                 }
-                return true;
-            }            
-            return false;
-        }
-
-        public static bool AssignmentOperator(Campo assignmentOperator)
-        {
-            if (IdTokenAtual == TkAtribuicao)
-            {
-                assignmentOperator.Cod = TokenAtual;
-                LeToken();
+                else if (VerificarToken(TkMultiplicationAssignment)) // identifica atribuicao
+                {
+                    LerToken();
+                    if (AssignmentExpression(assignmentExpression1))
+                    {
+                        assignmentExpression.Cod += EscreverCodigo(assignmentExpression1.Cod);
+                        assignmentExpression.Cod += EscreverCodigo("*", logicalOrExpression.Place, logicalOrExpression.Place, assignmentExpression1.Place);
+                        return true;
+                    }
+                }
+                else if (VerificarToken(TkDivisionAssignment)) // identifica atribuicao
+                {
+                    LerToken();
+                    if (AssignmentExpression(assignmentExpression1))
+                    {
+                        assignmentExpression.Cod += EscreverCodigo(assignmentExpression1.Cod);
+                        assignmentExpression.Cod += EscreverCodigo("/", logicalOrExpression.Place, logicalOrExpression.Place, assignmentExpression1.Place);
+                        return true;
+                    }
+                }
+                else if (VerificarToken(TkAdditionAssignment)) // identifica atribuicao
+                {
+                    LerToken();
+                    if (AssignmentExpression(assignmentExpression1))
+                    {
+                        assignmentExpression.Cod += EscreverCodigo(assignmentExpression1.Cod);
+                        assignmentExpression.Cod += EscreverCodigo("+", logicalOrExpression.Place, logicalOrExpression.Place, assignmentExpression1.Place);
+                        return true;
+                    }
+                }
+                else if (VerificarToken(TkSubtractionAssignment)) // identifica atribuicao
+                {
+                    LerToken();
+                    if (AssignmentExpression(assignmentExpression1))
+                    {
+                        assignmentExpression.Cod += EscreverCodigo(assignmentExpression1.Cod);
+                        assignmentExpression.Cod += EscreverCodigo("-", logicalOrExpression.Place, logicalOrExpression.Place, assignmentExpression1.Place);
+                        return true;
+                    }
+                }
+                else if (VerificarToken(TkRemainderAssignment)) // identifica atribuicao
+                {
+                    LerToken();
+                    if (AssignmentExpression(assignmentExpression1))
+                    {
+                        assignmentExpression.Cod += EscreverCodigo(assignmentExpression1.Cod);
+                        assignmentExpression.Cod += EscreverCodigo("%", logicalOrExpression.Place, logicalOrExpression.Place, assignmentExpression1.Place);
+                        return true;
+                    }
+                }
                 return true;
             }
             return false;
@@ -1202,15 +1443,15 @@ namespace CCompiler.Common
             var logicalAndExpression = new Campo();
             var logicalOrExpressionRec1H = new Campo();
             var logicalOrExpressionRec1S = new Campo();
-            if (IdTokenAtual == TkLogicalOr)
+            if (VerificarToken(TkLogicalOr))
             {
-                LeToken();
+                LerToken();
                 if (LogicalAndExpression(logicalAndExpression))
                 {
-                    logicalOrExpressionRec1H.Place = GeraRegTemp();
-                    logicalOrExpressionRec1H.Cod += EscreveCodigo(logicalOrExpressionRecH.Cod);
-                    logicalOrExpressionRec1H.Cod += EscreveCodigo(logicalAndExpression.Cod);
-                    logicalOrExpressionRec1H.Cod += EscreveCodigo("||", logicalOrExpressionRec1H.Place, logicalOrExpressionRecH.Place, logicalAndExpression.Place);
+                    logicalOrExpressionRec1H.Place = GerarTemp();
+                    logicalOrExpressionRec1H.Cod += EscreverCodigo(logicalOrExpressionRecH.Cod);
+                    logicalOrExpressionRec1H.Cod += EscreverCodigo(logicalAndExpression.Cod);
+                    logicalOrExpressionRec1H.Cod += EscreverCodigo("||", logicalOrExpressionRec1H.Place, logicalOrExpressionRecH.Place, logicalAndExpression.Place);
                     if (LogicalOrExpressionRec(logicalOrExpressionRec1H, logicalOrExpressionRec1S))
                     {
                         logicalOrExpressionRecS.Cod = logicalOrExpressionRec1S.Cod;
@@ -1219,7 +1460,7 @@ namespace CCompiler.Common
                     }
                 }
                 return false;
-            }            
+            }
             else
             {
                 logicalOrExpressionRecS.Cod = logicalOrExpressionRecH.Cod;
@@ -1252,15 +1493,15 @@ namespace CCompiler.Common
             var inclusiveOrExpression = new Campo();
             var logicalAndExpressionRec1H = new Campo();
             var logicalAndExpressionRec1S = new Campo();
-            if (IdTokenAtual == TkLogicalAnd)
+            if (VerificarToken(TkLogicalAnd))
             {
-                LeToken();
+                LerToken();
                 if (InclusiveOrExpression(inclusiveOrExpression))
                 {
-                    logicalAndExpressionRec1H.Place = GeraRegTemp();
-                    logicalAndExpressionRec1H.Cod += EscreveCodigo(logicalAndExpressionRecH.Cod);
-                    logicalAndExpressionRec1H.Cod += EscreveCodigo(inclusiveOrExpression.Cod);
-                    logicalAndExpressionRec1H.Cod += EscreveCodigo("&&", logicalAndExpressionRec1H.Place, logicalAndExpressionRecH.Place, inclusiveOrExpression.Place);
+                    logicalAndExpressionRec1H.Place = GerarTemp();
+                    logicalAndExpressionRec1H.Cod += EscreverCodigo(logicalAndExpressionRecH.Cod);
+                    logicalAndExpressionRec1H.Cod += EscreverCodigo(inclusiveOrExpression.Cod);
+                    logicalAndExpressionRec1H.Cod += EscreverCodigo("&&", logicalAndExpressionRec1H.Place, logicalAndExpressionRecH.Place, inclusiveOrExpression.Place);
                     if (LogicalAndExpressionRec(logicalAndExpressionRec1H, logicalAndExpressionRec1S))
                     {
                         logicalAndExpressionRecS.Cod = logicalAndExpressionRec1S.Cod;
@@ -1302,15 +1543,15 @@ namespace CCompiler.Common
             var exclusiveOrExpression = new Campo();
             var inclusiveOrExpressionRec1H = new Campo();
             var inclusiveOrExpressionRec1S = new Campo();
-            if (IdTokenAtual == TkOr)
+            if (VerificarToken(TkOr))
             {
-                LeToken();
+                LerToken();
                 if (ExclusiveOrExpression(exclusiveOrExpression))
                 {
-                    inclusiveOrExpressionRec1H.Place = GeraRegTemp();
-                    inclusiveOrExpressionRec1H.Cod += EscreveCodigo(inclusiveOrExpressionRecH.Cod);
-                    inclusiveOrExpressionRec1H.Cod += EscreveCodigo(exclusiveOrExpression.Cod);
-                    inclusiveOrExpressionRec1H.Cod += EscreveCodigo("|", inclusiveOrExpressionRec1H.Place, inclusiveOrExpressionRecH.Place, exclusiveOrExpression.Place);
+                    inclusiveOrExpressionRec1H.Place = GerarTemp();
+                    inclusiveOrExpressionRec1H.Cod += EscreverCodigo(inclusiveOrExpressionRecH.Cod);
+                    inclusiveOrExpressionRec1H.Cod += EscreverCodigo(exclusiveOrExpression.Cod);
+                    inclusiveOrExpressionRec1H.Cod += EscreverCodigo("|", inclusiveOrExpressionRec1H.Place, inclusiveOrExpressionRecH.Place, exclusiveOrExpression.Place);
                     if (InclusiveOrExpressionRec(inclusiveOrExpressionRec1H, inclusiveOrExpressionRec1S))
                     {
                         inclusiveOrExpressionRecS.Cod = inclusiveOrExpressionRec1S.Cod;
@@ -1352,15 +1593,15 @@ namespace CCompiler.Common
             var andExpression = new Campo();
             var exclusiveOrExpressionRec1H = new Campo();
             var exclusiveOrExpressionRec1S = new Campo();
-            if (IdTokenAtual == TkExclusiveOr)
+            if (VerificarToken(TkExclusiveOr))
             {
-                LeToken();
+                LerToken();
                 if (AndExpression(andExpression))
                 {
-                    exclusiveOrExpressionRec1H.Place = GeraRegTemp();
-                    exclusiveOrExpressionRec1H.Cod += EscreveCodigo(exclusiveOrExpressionRecH.Cod);
-                    exclusiveOrExpressionRec1H.Cod += EscreveCodigo(andExpression.Cod);
-                    exclusiveOrExpressionRec1H.Cod += EscreveCodigo("^", exclusiveOrExpressionRec1H.Place, exclusiveOrExpressionRecH.Place, andExpression.Place);
+                    exclusiveOrExpressionRec1H.Place = GerarTemp();
+                    exclusiveOrExpressionRec1H.Cod += EscreverCodigo(exclusiveOrExpressionRecH.Cod);
+                    exclusiveOrExpressionRec1H.Cod += EscreverCodigo(andExpression.Cod);
+                    exclusiveOrExpressionRec1H.Cod += EscreverCodigo("^", exclusiveOrExpressionRec1H.Place, exclusiveOrExpressionRecH.Place, andExpression.Place);
                     if (ExclusiveOrExpressionRec(exclusiveOrExpressionRec1H, exclusiveOrExpressionRec1S))
                     {
                         exclusiveOrExpressionRecS.Cod = exclusiveOrExpressionRec1S.Cod;
@@ -1402,15 +1643,15 @@ namespace CCompiler.Common
             var equalityExpression = new Campo();
             var andExpressionRec1H = new Campo();
             var andExpressionRec1S = new Campo();
-            if (IdTokenAtual == TkAnd)
+            if (VerificarToken(TkAnd))
             {
-                LeToken();
+                LerToken();
                 if (EqualityExpression(equalityExpression))
                 {
-                    andExpressionRec1H.Place = GeraRegTemp();
-                    andExpressionRec1H.Cod += EscreveCodigo(andExpressionRecH.Cod);
-                    andExpressionRec1H.Cod += EscreveCodigo(equalityExpression.Cod);
-                    andExpressionRec1H.Cod += EscreveCodigo("&", andExpressionRec1H.Place, andExpressionRecH.Place, equalityExpression.Place);
+                    andExpressionRec1H.Place = GerarTemp();
+                    andExpressionRec1H.Cod += EscreverCodigo(andExpressionRecH.Cod);
+                    andExpressionRec1H.Cod += EscreverCodigo(equalityExpression.Cod);
+                    andExpressionRec1H.Cod += EscreverCodigo("&", andExpressionRec1H.Place, andExpressionRecH.Place, equalityExpression.Place);
                     if (AndExpressionRec(andExpressionRec1H, andExpressionRec1S))
                     {
                         andExpressionRecS.Cod = andExpressionRec1S.Cod;
@@ -1452,15 +1693,15 @@ namespace CCompiler.Common
             var relationalExpression = new Campo();
             var equalityExpressionRec1H = new Campo();
             var equalityExpressionRec1S = new Campo();
-            if (IdTokenAtual == TkIgual)
+            if (VerificarToken(TkIgual))
             {
-                LeToken();
+                LerToken();
                 if (RelationalExpression(relationalExpression))
                 {
-                    equalityExpressionRec1H.Place = GeraRegTemp();
-                    equalityExpressionRec1H.Cod += EscreveCodigo(equalityExpressionRecH.Cod);
-                    equalityExpressionRec1H.Cod += EscreveCodigo(relationalExpression.Cod);
-                    equalityExpressionRec1H.Cod += EscreveCodigo("==", equalityExpressionRec1H.Place, equalityExpressionRecH.Place, relationalExpression.Place);
+                    equalityExpressionRec1H.Place = GerarTemp();
+                    equalityExpressionRec1H.Cod += EscreverCodigo(equalityExpressionRecH.Cod);
+                    equalityExpressionRec1H.Cod += EscreverCodigo(relationalExpression.Cod);
+                    equalityExpressionRec1H.Cod += EscreverCodigo("==", equalityExpressionRec1H.Place, equalityExpressionRecH.Place, relationalExpression.Place);
                     if (EqualityExpressionRec(equalityExpressionRec1H, equalityExpressionRec1S))
                     {
                         equalityExpressionRecS.Cod = equalityExpressionRec1S.Cod;
@@ -1472,13 +1713,13 @@ namespace CCompiler.Common
             }
             else if (IdTokenAtual == TkDiferente)
             {
-                LeToken();
+                LerToken();
                 if (RelationalExpression(relationalExpression))
                 {
-                    equalityExpressionRec1H.Place = GeraRegTemp();
-                    equalityExpressionRec1H.Cod += EscreveCodigo(equalityExpressionRecH.Cod);
-                    equalityExpressionRec1H.Cod += EscreveCodigo(relationalExpression.Cod);
-                    equalityExpressionRec1H.Cod += EscreveCodigo("!=", equalityExpressionRec1H.Place, equalityExpressionRecH.Place, relationalExpression.Place);
+                    equalityExpressionRec1H.Place = GerarTemp();
+                    equalityExpressionRec1H.Cod += EscreverCodigo(equalityExpressionRecH.Cod);
+                    equalityExpressionRec1H.Cod += EscreverCodigo(relationalExpression.Cod);
+                    equalityExpressionRec1H.Cod += EscreverCodigo("!=", equalityExpressionRec1H.Place, equalityExpressionRecH.Place, relationalExpression.Place);
                     if (EqualityExpressionRec(equalityExpressionRec1H, equalityExpressionRec1S))
                     {
                         equalityExpressionRecS.Cod = equalityExpressionRec1S.Cod;
@@ -1520,15 +1761,15 @@ namespace CCompiler.Common
             var addictiveExpression = new Campo();
             var relationalExpressionRec1H = new Campo();
             var relationalExpressionRec1S = new Campo();
-            if (IdTokenAtual == TkMenor)
+            if (VerificarToken(TkMenor))
             {
-                LeToken();
+                LerToken();
                 if (AddictiveExpression(addictiveExpression))
                 {
-                    relationalExpressionRec1H.Place = GeraRegTemp();
-                    relationalExpressionRec1H.Cod += EscreveCodigo(relationalExpressionRecH.Cod);
-                    relationalExpressionRec1H.Cod += EscreveCodigo(addictiveExpression.Cod);
-                    relationalExpressionRec1H.Cod += EscreveCodigo("<", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
+                    relationalExpressionRec1H.Place = GerarTemp();
+                    relationalExpressionRec1H.Cod += EscreverCodigo(relationalExpressionRecH.Cod);
+                    relationalExpressionRec1H.Cod += EscreverCodigo(addictiveExpression.Cod);
+                    relationalExpressionRec1H.Cod += EscreverCodigo("<", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
                     if (RelationalExpressionRec(relationalExpressionRec1H, relationalExpressionRec1S))
                     {
                         relationalExpressionRecS.Cod = relationalExpressionRec1S.Cod;
@@ -1538,15 +1779,15 @@ namespace CCompiler.Common
                 }
                 return false;
             }
-            else if (IdTokenAtual == TkMaior)
+            else if (VerificarToken(TkMaior))
             {
-                LeToken();
+                LerToken();
                 if (AddictiveExpression(addictiveExpression))
                 {
-                    relationalExpressionRec1H.Place = GeraRegTemp();
-                    relationalExpressionRec1H.Cod += EscreveCodigo(relationalExpressionRecH.Cod);
-                    relationalExpressionRec1H.Cod += EscreveCodigo(addictiveExpression.Cod);
-                    relationalExpressionRec1H.Cod += EscreveCodigo(">", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
+                    relationalExpressionRec1H.Place = GerarTemp();
+                    relationalExpressionRec1H.Cod += EscreverCodigo(relationalExpressionRecH.Cod);
+                    relationalExpressionRec1H.Cod += EscreverCodigo(addictiveExpression.Cod);
+                    relationalExpressionRec1H.Cod += EscreverCodigo(">", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
                     if (RelationalExpressionRec(relationalExpressionRec1H, relationalExpressionRec1S))
                     {
                         relationalExpressionRecS.Cod = relationalExpressionRec1S.Cod;
@@ -1556,15 +1797,15 @@ namespace CCompiler.Common
                 }
                 return false;
             }
-            else if (IdTokenAtual == TkMenorIgual)
+            else if (VerificarToken(TkMenorIgual))
             {
-                LeToken();
+                LerToken();
                 if (AddictiveExpression(addictiveExpression))
                 {
-                    relationalExpressionRec1H.Place = GeraRegTemp();
-                    relationalExpressionRec1H.Cod += EscreveCodigo(relationalExpressionRecH.Cod);
-                    relationalExpressionRec1H.Cod += EscreveCodigo(addictiveExpression.Cod);
-                    relationalExpressionRec1H.Cod += EscreveCodigo("<=", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
+                    relationalExpressionRec1H.Place = GerarTemp();
+                    relationalExpressionRec1H.Cod += EscreverCodigo(relationalExpressionRecH.Cod);
+                    relationalExpressionRec1H.Cod += EscreverCodigo(addictiveExpression.Cod);
+                    relationalExpressionRec1H.Cod += EscreverCodigo("<=", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
                     if (RelationalExpressionRec(relationalExpressionRec1H, relationalExpressionRec1S))
                     {
                         relationalExpressionRecS.Cod = relationalExpressionRec1S.Cod;
@@ -1574,15 +1815,15 @@ namespace CCompiler.Common
                 }
                 return false;
             }
-            else if (IdTokenAtual == TkMaiorIgual)
+            else if (VerificarToken(TkMaiorIgual))
             {
-                LeToken();
+                LerToken();
                 if (AddictiveExpression(addictiveExpression))
                 {
-                    relationalExpressionRec1H.Place = GeraRegTemp();
-                    relationalExpressionRec1H.Cod += EscreveCodigo(relationalExpressionRecH.Cod);
-                    relationalExpressionRec1H.Cod += EscreveCodigo(addictiveExpression.Cod);
-                    relationalExpressionRec1H.Cod += EscreveCodigo(">=", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
+                    relationalExpressionRec1H.Place = GerarTemp();
+                    relationalExpressionRec1H.Cod += EscreverCodigo(relationalExpressionRecH.Cod);
+                    relationalExpressionRec1H.Cod += EscreverCodigo(addictiveExpression.Cod);
+                    relationalExpressionRec1H.Cod += EscreverCodigo(">=", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
                     if (RelationalExpressionRec(relationalExpressionRec1H, relationalExpressionRec1S))
                     {
                         relationalExpressionRecS.Cod = relationalExpressionRec1S.Cod;
@@ -1592,7 +1833,7 @@ namespace CCompiler.Common
                 }
                 return false;
             }
-            else 
+            else
             {
                 relationalExpressionRecS.Cod = relationalExpressionRecH.Cod;
                 relationalExpressionRecS.Place = relationalExpressionRecH.Place;
@@ -1624,15 +1865,15 @@ namespace CCompiler.Common
             var multiplicativeExpression = new Campo();
             var addictiveExpressionRec1H = new Campo();
             var addictiveExpressionRec1S = new Campo();
-            if (IdTokenAtual == TkMais)
+            if (VerificarToken(TkAddiction))
             {
-                LeToken();
+                LerToken();
                 if (MultiplicativeExpression(multiplicativeExpression))
                 {
-                    addictiveExpressionRec1H.Place = GeraRegTemp();
-                    addictiveExpressionRec1H.Cod += EscreveCodigo(addictiveExpressionRecH.Cod);
-                    addictiveExpressionRec1H.Cod += EscreveCodigo(multiplicativeExpression.Cod);
-                    addictiveExpressionRec1H.Cod += EscreveCodigo("+", addictiveExpressionRec1H.Place, addictiveExpressionRecH.Place, multiplicativeExpression.Place);
+                    addictiveExpressionRec1H.Place = GerarTemp();
+                    addictiveExpressionRec1H.Cod += EscreverCodigo(addictiveExpressionRecH.Cod);
+                    addictiveExpressionRec1H.Cod += EscreverCodigo(multiplicativeExpression.Cod);
+                    addictiveExpressionRec1H.Cod += EscreverCodigo("+", addictiveExpressionRec1H.Place, addictiveExpressionRecH.Place, multiplicativeExpression.Place);
                     if (AddictiveExpressionRec(addictiveExpressionRec1H, addictiveExpressionRec1S))
                     {
                         addictiveExpressionRecS.Cod = addictiveExpressionRec1S.Cod;
@@ -1642,15 +1883,15 @@ namespace CCompiler.Common
                 }
                 return false;
             }
-            else if (IdTokenAtual == TkMenos)
+            else if (VerificarToken(TkSubtraction))
             {
-                LeToken();
+                LerToken();
                 if (MultiplicativeExpression(multiplicativeExpression))
                 {
-                    addictiveExpressionRec1H.Place = GeraRegTemp();
-                    addictiveExpressionRec1H.Cod += EscreveCodigo(addictiveExpressionRecH.Cod);
-                    addictiveExpressionRec1H.Cod += EscreveCodigo(multiplicativeExpression.Cod);
-                    addictiveExpressionRec1H.Cod += EscreveCodigo("-", addictiveExpressionRec1H.Place, addictiveExpressionRecH.Place, multiplicativeExpression.Place);
+                    addictiveExpressionRec1H.Place = GerarTemp();
+                    addictiveExpressionRec1H.Cod += EscreverCodigo(addictiveExpressionRecH.Cod);
+                    addictiveExpressionRec1H.Cod += EscreverCodigo(multiplicativeExpression.Cod);
+                    addictiveExpressionRec1H.Cod += EscreverCodigo("-", addictiveExpressionRec1H.Place, addictiveExpressionRecH.Place, multiplicativeExpression.Place);
                     if (AddictiveExpressionRec(addictiveExpressionRec1H, addictiveExpressionRec1S))
                     {
                         addictiveExpressionRecS.Cod = addictiveExpressionRec1S.Cod;
@@ -1682,6 +1923,7 @@ namespace CCompiler.Common
                     multiplicativeExpression.Cod = multiplicativeExpressionRecS.Cod;
                     multiplicativeExpression.Place = multiplicativeExpressionRecS.Place;
                     return true;
+
                 }
             }
             return false;
@@ -1692,15 +1934,16 @@ namespace CCompiler.Common
             var primaryExpression = new Campo();
             var multiplicativeExpressionRec1H = new Campo();
             var multiplicativeExpressionRec1S = new Campo();
-            if (IdTokenAtual == TkAsterisco)
+
+            if (VerificarToken(TkMultiplication))
             {
-                LeToken();
+                LerToken();
                 if (PrimaryExpression(primaryExpression))
                 {
-                    multiplicativeExpressionRec1H.Place = GeraRegTemp();
-                    multiplicativeExpressionRec1H.Cod += EscreveCodigo(multiplicativeExpressionRecH.Cod);
-                    multiplicativeExpressionRec1H.Cod += EscreveCodigo(primaryExpression.Cod);
-                    multiplicativeExpressionRec1H.Cod += EscreveCodigo("*", multiplicativeExpressionRec1H.Place, multiplicativeExpressionRecH.Place, primaryExpression.Place);
+                    multiplicativeExpressionRec1H.Place = GerarTemp();
+                    multiplicativeExpressionRec1H.Cod += EscreverCodigo(multiplicativeExpressionRecH.Cod);
+                    multiplicativeExpressionRec1H.Cod += EscreverCodigo(primaryExpression.Cod);
+                    multiplicativeExpressionRec1H.Cod += EscreverCodigo("*", multiplicativeExpressionRec1H.Place, multiplicativeExpressionRecH.Place, primaryExpression.Place);
                     if (MultiplicativeExpressionRec(multiplicativeExpressionRec1H, multiplicativeExpressionRec1S))
                     {
                         multiplicativeExpressionRecS.Cod = multiplicativeExpressionRec1S.Cod;
@@ -1710,15 +1953,15 @@ namespace CCompiler.Common
                 }
                 return false;
             }
-            else if (IdTokenAtual == TkBarraDivisao)
+            else if (VerificarToken(TkDivision))
             {
-                LeToken();
+                LerToken();
                 if (PrimaryExpression(primaryExpression))
                 {
-                    multiplicativeExpressionRec1H.Place = GeraRegTemp();
-                    multiplicativeExpressionRec1H.Cod += EscreveCodigo(multiplicativeExpressionRecH.Cod);
-                    multiplicativeExpressionRec1H.Cod += EscreveCodigo(primaryExpression.Cod);
-                    multiplicativeExpressionRec1H.Cod += EscreveCodigo("/", multiplicativeExpressionRec1H.Place, multiplicativeExpressionRecH.Place, primaryExpression.Place);
+                    multiplicativeExpressionRec1H.Place = GerarTemp();
+                    multiplicativeExpressionRec1H.Cod += EscreverCodigo(multiplicativeExpressionRecH.Cod);
+                    multiplicativeExpressionRec1H.Cod += EscreverCodigo(primaryExpression.Cod);
+                    multiplicativeExpressionRec1H.Cod += EscreverCodigo("/", multiplicativeExpressionRec1H.Place, multiplicativeExpressionRecH.Place, primaryExpression.Place);
                     if (MultiplicativeExpressionRec(multiplicativeExpressionRec1H, multiplicativeExpressionRec1S))
                     {
                         multiplicativeExpressionRecS.Cod = multiplicativeExpressionRec1S.Cod;
@@ -1728,15 +1971,15 @@ namespace CCompiler.Common
                 }
                 return false;
             }
-            else if (IdTokenAtual == TkPercentual)
+            else if (VerificarToken(TkRemainder))
             {
-                LeToken();
+                LerToken();
                 if (PrimaryExpression(primaryExpression))
                 {
-                    multiplicativeExpressionRec1H.Place = GeraRegTemp();
-                    multiplicativeExpressionRec1H.Cod += EscreveCodigo(multiplicativeExpressionRecH.Cod);
-                    multiplicativeExpressionRec1H.Cod += EscreveCodigo(primaryExpression.Cod);
-                    multiplicativeExpressionRec1H.Cod += EscreveCodigo("%", multiplicativeExpressionRec1H.Place, multiplicativeExpressionRecH.Place, primaryExpression.Place);
+                    multiplicativeExpressionRec1H.Place = GerarTemp();
+                    multiplicativeExpressionRec1H.Cod += EscreverCodigo(multiplicativeExpressionRecH.Cod);
+                    multiplicativeExpressionRec1H.Cod += EscreverCodigo(primaryExpression.Cod);
+                    multiplicativeExpressionRec1H.Cod += EscreverCodigo("%", multiplicativeExpressionRec1H.Place, multiplicativeExpressionRecH.Place, primaryExpression.Place);
                     if (MultiplicativeExpressionRec(multiplicativeExpressionRec1H, multiplicativeExpressionRec1S))
                     {
                         multiplicativeExpressionRecS.Cod = multiplicativeExpressionRec1S.Cod;
@@ -1764,18 +2007,18 @@ namespace CCompiler.Common
                 unaryExpression.Cod = postFixExpression.Cod;
                 return true;
             }
-            else if (IdTokenAtual == TkMaisMais)
+            else if (IdTokenAtual == TkDoublePlus)
             {
-                LeToken();
+                LerToken();
                 if (UnaryExpression(unaryExpression1))
                 {
                     unaryExpression.Cod = unaryExpression1.Cod;
                     return true;
                 }
             }
-            else if (IdTokenAtual == TkMenosMenos)
+            else if (IdTokenAtual == TkDoubleMinus)
             {
-                LeToken();
+                LerToken();
                 if (UnaryExpression(unaryExpression1))
                 {
                     unaryExpression.Cod = unaryExpression1.Cod;
@@ -1793,18 +2036,18 @@ namespace CCompiler.Common
             if (PrimaryExpression(primaryExpression))
             {
                 postFixExpression.Place = primaryExpression.Place;
-                if (IdTokenAtual == TkMaisMais)
+                if (IdTokenAtual == TkDoublePlus)
                 {
-                    LeToken();
+                    LerToken();
                     if (UnaryExpression(unaryExpression1))
                     {
                         postFixExpression.Cod += unaryExpression1.Cod;
                         return true;
                     }
                 }
-                else if (IdTokenAtual == TkMenosMenos)
+                else if (IdTokenAtual == TkDoubleMinus)
                 {
-                    LeToken();
+                    LerToken();
                     if (UnaryExpression(unaryExpression1))
                     {
                         postFixExpression.Cod += unaryExpression1.Cod;
@@ -1820,32 +2063,34 @@ namespace CCompiler.Common
         public static bool PrimaryExpression(Campo primaryExpression)
         {
             var expression = new Campo();
-            if (IdTokenAtual == TkConst)
+            if (VerificarToken(TkConst))
             {
                 primaryExpression.Place = TokenAtual;
-                LeToken();
+                LerToken();
                 return true;
             }
-            else if (IdTokenAtual == TkId)
+            else if (VerificarToken(TkId))
             {
                 primaryExpression.Place = TokenAtual;
-                LeToken();
+                LerToken();
                 return true;
             }
-            else if (IdTokenAtual == TkAbreParentese)
+            else if (VerificarToken(TkAbreParentese))
             {
-                LeToken();
+                LerToken();
                 if (Expression(expression))
                 {
                     if (IdTokenAtual == TkFechaParentese)
                     {
-                        LeToken();
+                        LerToken();
                         primaryExpression.Cod = expression.Cod;
                         primaryExpression.Place = expression.Place;
                         return true;
                     }
+                    GerarExcessao(new[] { ")" });
                 }
             }
+            GerarExcessao(new[] { "constante", "identificador", "(" });
             return false;
         }
 
@@ -1861,15 +2106,15 @@ namespace CCompiler.Common
             {
                 if (IdTokenAtual == TkPontoVirgula)
                 {
-                    LeToken();
+                    LerToken();
 
                     // propaga os labels 
                     listacont.Rotulo2 = cmd.Rotulo2;
                     listacont.Rotulo1 = cmd.Rotulo1;
                     if (ListaCont(listacont))
                     {
-                        listacmd.Cod += EscreveCodigo(cmd.Cod);
-                        listacmd.Cod += EscreveCodigo(listacont.Cod);
+                        listacmd.Cod += EscreverCodigo(cmd.Cod);
+                        listacmd.Cod += EscreverCodigo(listacont.Cod);
                         return true;
                     }
                     return false;
@@ -1891,15 +2136,15 @@ namespace CCompiler.Common
             {
                 if (IdTokenAtual == TkPontoVirgula)
                 {
-                    LeToken();
+                    LerToken();
 
                     // propaga os labels 
                     listacont1.Rotulo2 = cmd.Rotulo2;
                     listacont1.Rotulo1 = cmd.Rotulo1;
                     if (ListaCont(listacont1))
                     {
-                        listacont.Cod += EscreveCodigo(cmd.Cod);
-                        listacont.Cod += EscreveCodigo(listacont1.Cod);
+                        listacont.Cod += EscreverCodigo(cmd.Cod);
+                        listacont.Cod += EscreverCodigo(listacont1.Cod);
                         return true;
                     }
                     return false;
@@ -1937,13 +2182,13 @@ namespace CCompiler.Common
 
             if (IdTokenAtual == TkIgual)
             {
-                LeToken();
+                LerToken();
                 if (E(e))
                 {
-                    rb1h.Place = GeraRegTemp();
-                    rb1h.Cod += EscreveCodigo(rbh.Cod);
-                    rb1h.Cod += EscreveCodigo(e.Cod);
-                    rb1h.Cod += EscreveCodigo("==", rb1h.Place, rbh.Place, e.Place);
+                    rb1h.Place = GerarTemp();
+                    rb1h.Cod += EscreverCodigo(rbh.Cod);
+                    rb1h.Cod += EscreverCodigo(e.Cod);
+                    rb1h.Cod += EscreverCodigo("==", rb1h.Place, rbh.Place, e.Place);
                     if (RB(rb1h, rb1s))
                     {
                         rbs.Cod = rb1s.Cod;
@@ -1954,13 +2199,13 @@ namespace CCompiler.Common
             }
             else if (IdTokenAtual == TkDiferente)
             {
-                LeToken();
+                LerToken();
                 if (E(e))
                 {
-                    rb1h.Place = GeraRegTemp();
-                    rb1h.Cod += EscreveCodigo(rbh.Cod);
-                    rb1h.Cod += EscreveCodigo(e.Cod);
-                    rb1h.Cod += EscreveCodigo("!=", rb1h.Place, rbh.Place, e.Place);
+                    rb1h.Place = GerarTemp();
+                    rb1h.Cod += EscreverCodigo(rbh.Cod);
+                    rb1h.Cod += EscreverCodigo(e.Cod);
+                    rb1h.Cod += EscreverCodigo("!=", rb1h.Place, rbh.Place, e.Place);
                     if (RB(rb1h, rb1s))
                     {
                         rbs.Cod = rb1s.Cod;
@@ -1971,13 +2216,13 @@ namespace CCompiler.Common
             }
             else if (IdTokenAtual == TkMaiorIgual)
             {
-                LeToken();
+                LerToken();
                 if (E(e))
                 {
-                    rb1h.Place = GeraRegTemp();
-                    rb1h.Cod += EscreveCodigo(rbh.Cod);
-                    rb1h.Cod += EscreveCodigo(e.Cod);
-                    rb1h.Cod += EscreveCodigo(">=", rb1h.Place, rbh.Place, e.Place);
+                    rb1h.Place = GerarTemp();
+                    rb1h.Cod += EscreverCodigo(rbh.Cod);
+                    rb1h.Cod += EscreverCodigo(e.Cod);
+                    rb1h.Cod += EscreverCodigo(">=", rb1h.Place, rbh.Place, e.Place);
                     if (RB(rb1h, rb1s))
                     {
                         rbs.Cod = rb1s.Cod;
@@ -1988,13 +2233,13 @@ namespace CCompiler.Common
             }
             else if (IdTokenAtual == TkMaior)
             {
-                LeToken();
+                LerToken();
                 if (E(e))
                 {
-                    rb1h.Place = GeraRegTemp();
-                    rb1h.Cod += EscreveCodigo(rbh.Cod);
-                    rb1h.Cod += EscreveCodigo(e.Cod);
-                    rb1h.Cod += EscreveCodigo(">", rb1h.Place, rbh.Place, e.Place);
+                    rb1h.Place = GerarTemp();
+                    rb1h.Cod += EscreverCodigo(rbh.Cod);
+                    rb1h.Cod += EscreverCodigo(e.Cod);
+                    rb1h.Cod += EscreverCodigo(">", rb1h.Place, rbh.Place, e.Place);
                     if (RB(rb1h, rb1s))
                     {
                         rbs.Cod = rb1s.Cod;
@@ -2005,13 +2250,13 @@ namespace CCompiler.Common
             }
             else if (IdTokenAtual == TkMenorIgual)
             {
-                LeToken();
+                LerToken();
                 if (E(e))
                 {
-                    rb1h.Place = GeraRegTemp();
-                    rb1h.Cod += EscreveCodigo(rbh.Cod);
-                    rb1h.Cod += EscreveCodigo(e.Cod);
-                    rb1h.Cod += EscreveCodigo("<=", rb1h.Place, rbh.Place, e.Place);
+                    rb1h.Place = GerarTemp();
+                    rb1h.Cod += EscreverCodigo(rbh.Cod);
+                    rb1h.Cod += EscreverCodigo(e.Cod);
+                    rb1h.Cod += EscreverCodigo("<=", rb1h.Place, rbh.Place, e.Place);
                     if (RB(rb1h, rb1s))
                     {
                         rbs.Cod = rb1s.Cod;
@@ -2022,14 +2267,14 @@ namespace CCompiler.Common
             }
             else if (IdTokenAtual == TkMenor)
             {
-                LeToken();
+                LerToken();
                 if (E(e))
                 {
 
-                    rb1h.Place = GeraRegTemp();
-                    rb1h.Cod += EscreveCodigo(rbh.Cod);
-                    rb1h.Cod += EscreveCodigo(e.Cod);
-                    rb1h.Cod += EscreveCodigo("<", rb1h.Place, rbh.Place, e.Place);
+                    rb1h.Place = GerarTemp();
+                    rb1h.Cod += EscreverCodigo(rbh.Cod);
+                    rb1h.Cod += EscreverCodigo(e.Cod);
+                    rb1h.Cod += EscreverCodigo("<", rb1h.Place, rbh.Place, e.Place);
                     if (RB(rb1h, rb1s))
                     {
                         rbs.Cod = rb1s.Cod;
@@ -2073,15 +2318,15 @@ namespace CCompiler.Common
             Campo r1s = new Campo();
             Campo t = new Campo();
 
-            if (IdTokenAtual == TkMais)
+            if (IdTokenAtual == TkAddiction)
             {
-                LeToken();
+                LerToken();
                 if (T(t))
                 {
-                    r1h.Place = GeraRegTemp();
-                    r1h.Cod += EscreveCodigo(rh.Cod);
-                    r1h.Cod += EscreveCodigo(t.Cod);
-                    r1h.Cod += EscreveCodigo("+", r1h.Place, rh.Place, t.Place);
+                    r1h.Place = GerarTemp();
+                    r1h.Cod += EscreverCodigo(rh.Cod);
+                    r1h.Cod += EscreverCodigo(t.Cod);
+                    r1h.Cod += EscreverCodigo("+", r1h.Place, rh.Place, t.Place);
                     if (R(r1h, r1s))
                     {
                         rs.Cod = r1s.Cod;
@@ -2092,15 +2337,15 @@ namespace CCompiler.Common
                 }
                 return false;
             }
-            else if (IdTokenAtual == TkMenos)
+            else if (IdTokenAtual == TkSubtraction)
             {
-                LeToken();
+                LerToken();
                 if (T(t))
                 {
-                    r1h.Place = GeraRegTemp();
-                    r1h.Cod += EscreveCodigo(rh.Cod);
-                    r1h.Cod += EscreveCodigo(t.Cod);
-                    r1h.Cod += EscreveCodigo("-", r1h.Place, rh.Place, t.Place);
+                    r1h.Place = GerarTemp();
+                    r1h.Cod += EscreverCodigo(rh.Cod);
+                    r1h.Cod += EscreverCodigo(t.Cod);
+                    r1h.Cod += EscreverCodigo("-", r1h.Place, rh.Place, t.Place);
                     if (R(r1h, r1s))
                     {
                         rs.Cod = r1s.Cod;
@@ -2145,15 +2390,15 @@ namespace CCompiler.Common
             Campo ra1s = new Campo();
             Campo f = new Campo();
 
-            if (IdTokenAtual == TkAsterisco)
+            if (IdTokenAtual == TkMultiplication)
             {
-                LeToken();
+                LerToken();
                 if (F(f))
                 {
-                    ra1h.Place = GeraRegTemp();
-                    ra1h.Cod += EscreveCodigo(rah.Cod);
-                    ra1h.Cod += EscreveCodigo(f.Cod);
-                    ra1h.Cod += EscreveCodigo("*", ra1h.Place, rah.Place, f.Place);
+                    ra1h.Place = GerarTemp();
+                    ra1h.Cod += EscreverCodigo(rah.Cod);
+                    ra1h.Cod += EscreverCodigo(f.Cod);
+                    ra1h.Cod += EscreverCodigo("*", ra1h.Place, rah.Place, f.Place);
                     if (RA(ra1h, ra1s))
                     {
                         ras.Cod = ra1s.Cod;
@@ -2164,15 +2409,15 @@ namespace CCompiler.Common
                 }
                 return false;
             }
-            else if (IdTokenAtual == TkBarraDivisao)
+            else if (IdTokenAtual == TkDivision)
             {
-                LeToken();
+                LerToken();
                 if (F(f))
                 {
-                    ra1h.Place = GeraRegTemp();
-                    ra1h.Cod += EscreveCodigo(rah.Cod);
-                    ra1h.Cod += EscreveCodigo(f.Cod);
-                    ra1h.Cod += EscreveCodigo("/", ra1h.Place, rah.Place, f.Place);
+                    ra1h.Place = GerarTemp();
+                    ra1h.Cod += EscreverCodigo(rah.Cod);
+                    ra1h.Cod += EscreverCodigo(f.Cod);
+                    ra1h.Cod += EscreverCodigo("/", ra1h.Place, rah.Place, f.Place);
                     if (RA(ra1h, ra1s))
                     {
                         ras.Place = ra1s.Place;
@@ -2198,17 +2443,17 @@ namespace CCompiler.Common
             if (IdTokenAtual == TkConst)
             {
                 f.Place = TokenAtual;
-                LeToken();
+                LerToken();
                 return true;
             }
             else if (IdTokenAtual == TkAbreParentese)
             {
-                LeToken();
+                LerToken();
                 if (E(e))
                 {
                     if (IdTokenAtual == TkFechaParentese)
                     {
-                        LeToken();
+                        LerToken();
                         f.Place = e.Place;
                         f.Cod = e.Cod;
                         return true;
@@ -2221,7 +2466,7 @@ namespace CCompiler.Common
             {
                 f.Place = TokenAtual;
                 f.Cod = "";
-                LeToken();
+                LerToken();
                 return true;
             }
             return false;
