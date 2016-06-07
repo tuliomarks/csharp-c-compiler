@@ -1,5 +1,5 @@
 C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\CCompiler.Common\bin\Debug\CCompiler.Common.dll
 C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\CCompiler.Common\bin\Debug\CCompiler.Common.pdb
-C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\CCompiler.Common\obj\Debug\CCompiler.Common.csprojResolveAssemblyReference.cache
 C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\CCompiler.Common\obj\Debug\CCompiler.Common.dll
 C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\CCompiler.Common\obj\Debug\CCompiler.Common.pdb
+C:\Users\tulio.marks\Documents\Arquivos pessoais\Estudos\UCS\Compiladores\chsarp-c-compiler\src\CCompiler.Common\obj\Debug\CCompiler.Common.csprojResolveAssemblyReference.cache

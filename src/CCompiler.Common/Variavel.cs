@@ -4,7 +4,7 @@
     {
         public string Id { get; set; }
         public string Tipo { get; set; }
-        public int Endereco { get; set; }
+        public Escopo Ref { get; set; }
 
     }
 }

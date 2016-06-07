@@ -1,0 +1,27 @@
+T1 := 0  
+a := T1  
+L3: 
+T2 := 10  
+if a<T2 goto L1
+T3 := 0  
+goto L2
+L1: 
+T3 := 1  
+L2: 
+ifZ T3=0 goto L4
+T4 := 1  
+a := a + T4
+T5 := 2  
+if a=T5 goto L5
+T6 := 0  
+goto L6
+L5: 
+T6 := 1  
+L6: 
+ifZ T6=0 goto L7
+goto L4
+L7: 
+T7 := 2  
+b := b + T7
+goto L3
+L4: 

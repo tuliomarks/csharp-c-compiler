@@ -15,6 +15,8 @@ namespace CCompiler.Common
         public static int ColunaTokenAtual { get; set; }
         public static List<string> TokensAguardados { get; set; }
         public static List<Exception> Exceptions { get; set; }
+        public static Escopo EscopoGlobal { get; set; }
+        public static Escopo EscopoAtual { get; set; }
 
         public static void Inicializar(string exp)
         {
@@ -23,6 +25,8 @@ namespace CCompiler.Common
             Pos = 0;
             Linha = 1;
             Coluna = 1;
+            EscopoGlobal = new Escopo();
+            EscopoAtual = EscopoGlobal;
             TokensAguardados = new List<string>();
             Exceptions = new List<Exception>();
             Exp = exp.ToCharArray();
@@ -31,11 +35,9 @@ namespace CCompiler.Common
 
         public static int MemoriaBase { get; set; }
 
-        public static List<Variavel> TabelaVariaveis { get; set; }
-
         #region Lexico
 
-        private static readonly List<string> Reservadas = new List<string>() { "int", "float", "char", "struct", "while", "break", "continue", "short", "double", "long", "do", "if", "else" };
+        private static readonly List<string> Reservadas = new List<string>() { "int", "float", "char", "struct", "while", "break", "continue", "short", "double", "long", "do", "if", "else", "void", "for", "switch", "case", "default" };
         private const int TkInt = 0;
         private const int TkFloat = 1;
         private const int TkChar = 2;
@@ -49,6 +51,11 @@ namespace CCompiler.Common
         private const int TkDo = 10;
         private const int TkIf = 11;
         private const int TkElse = 12;
+        private const int TkVoid = 13;
+        private const int TkFor = 14;
+        private const int TkSwitch = 15;
+        private const int TkCase = 16;
+        private const int TkDefault = 17;
 
         private const int TkConst = 100;
         private const int TkVirgula = 101;
@@ -87,6 +94,7 @@ namespace CCompiler.Common
         private const int TkAdditionAssignment = 134; // +=
         private const int TkSubtractionAssignment = 135; // -=
         private const int TkRemainderAssignment = 136; // -=
+        private const int TkAspasSimples = 137;
 
         private static char[] Exp { get; set; }
         private static int Pos { get; set; }
@@ -174,6 +182,12 @@ namespace CCompiler.Common
                     }
 
                     /* de 1 unico char */
+                    if (c == '\'')
+                    {
+                        LerChar();
+                        IdTokenAtual = TkAspasSimples;
+                        break;
+                    }
                     if (c == '{')
                     {
                         LerChar();
@@ -527,17 +541,22 @@ namespace CCompiler.Common
         }
         public static string EscreverCodigo(string comando, string atribuido, string op1, string op2)
         {
-            return string.Format("{0} := {1}{2}{3}\n", atribuido, op1, comando, op2);
+            return string.Format("{0} := {1} {2} {3}\n", atribuido, op1, comando, op2);
+        }
+
+        public static string EscreverCodigoIf(string op1, string operador, string op2, string label)
+        {
+            return string.Format("if {0}{1}{2} goto {3}\n", op1, operador, op2, label);
         }
 
         public static string EscreverCodigoIf(string expressao, string gotoLabel)
         {
-            return string.Format("if {0} goto {1}\n", expressao, gotoLabel);
+            return string.Format("if {0}=1 goto {1}\n", expressao, gotoLabel);
         }
 
         public static string EscreverCodigoIfZ(string expressao, string gotoLabel)
         {
-            return string.Format("ifZ {0} goto {1}\n", expressao, gotoLabel);
+            return string.Format("if {0}=0 goto {1}\n", expressao, gotoLabel);
         }
 
         private static bool VerificarToken(int token)
@@ -552,7 +571,26 @@ namespace CCompiler.Common
                     ColunaTokenAtual, esperava.Aggregate((a, b) => a + ", " + b), TokenAtual)));
         }
 
+        private static void GerarExcessaoTipoDup(string[] esperava)
+        {
+            Exceptions.Add(
+                new Exception(string.Format("({0},{1}) Esperava {2} e encontrou \"{3}\"", LinhaTokenAtual,
+                    ColunaTokenAtual, esperava.Aggregate((a, b) => a + ", " + b), TokenAtual)));
+        }
+
         #endregion
+
+        private static bool AdicionarVariavelTab(string nome, string tipo, Escopo referencia = null)
+        {
+            if (EscopoGlobal.Variaveis.Any(x => x.Id == nome))
+            {
+                GerarExcessao(new[]{"id único"});
+                return false;
+            }
+
+            EscopoGlobal.Variaveis.Add(new Variavel(){Id = nome, Ref = referencia, Tipo = tipo});
+            return true;
+        }
 
         private static int TempContador { get; set; }
 
@@ -570,20 +608,6 @@ namespace CCompiler.Common
             return "L" + RotuloContador;
         }
 
-        private static int GerarEndereco(int tamanho)
-        {
-            var ret = MemoriaBase;
-            MemoriaBase += tamanho;
-            return ret;
-
-        }
-
-        private static void AdicionarVariavelTabela(string id, string tipo, int endereco)
-        {
-            if (TabelaVariaveis == null) TabelaVariaveis = new List<Variavel>();
-            TabelaVariaveis.Add(new Variavel() { Id = id, Endereco = endereco, Tipo = tipo });
-        }
-
         // ----------------------------------------------------
         // Declaration -> TypeSpecifier DeclaratorList;
         // DeclaratorList -> InitDeclarator DeclaratorListRec
@@ -594,10 +618,10 @@ namespace CCompiler.Common
         // InitDeclarator -> Declarator
 
         // Declarator -> id 
-        // Declarator -> ( id )
+        // Declarator -> ( Expression )
 
         // TypeSpecifier -> void
-        // TypeSpecifier -> char
+        // TypeSpecifier -> char // nao implementado
         // TypeSpecifier -> short
         // TypeSpecifier -> int
         // TypeSpecifier -> long
@@ -606,12 +630,23 @@ namespace CCompiler.Common
         // TypeSpecifier -> float
         // TypeSpecifier -> double
 
+        // ParametersList -> TypeSpecifier InitDeclarator ParametersListRec
+        // ParametersList -> <vazio>
+        // ParametersListRec -> , TypeSpecifier InitDeclarator ParametersListRec
+        // ParametersListRec -> <vazio>
+
+        // FunctionDefinition -> TypeSpecifier Declarator (ParametersList) CompoundStatement
+
+        // ExternalDeclaration -> FunctionDefinition ExternalDeclaration
+        // ExternalDeclaration -> Declaration ExternalDeclaration
+
         public static bool Declaration(Campo declaration)
         {
             var typeSpecifier = new Campo();
             var declaratorList = new Campo();
             if (TypeSpecifier(typeSpecifier))
             {
+                declaratorList.Tipo = typeSpecifier.Tipo;
                 if (DeclaratorList(declaratorList))
                 {
                     if (VerificarToken(TkPontoVirgula))
@@ -627,55 +662,61 @@ namespace CCompiler.Common
 
         public static bool TypeSpecifier(Campo typeSpecifier)
         {
-            if (VerificarToken(TkChar))
+            if (VerificarToken(TkVoid))
             {
                 LerToken();
-                typeSpecifier.Type = "char";
+                typeSpecifier.Tipo = "void";
                 return true;
             }
+            /*if (VerificarToken(TkChar))
+            {
+                LerToken();
+                typeSpecifier.Tipo = "char";
+                return true;
+            }*/
             if (VerificarToken(TkShort))
             {
                 LerToken();
-                typeSpecifier.Type = "short";
+                typeSpecifier.Tipo = "short";
                 return true;
             }
             if (VerificarToken(TkInt))
             {
                 LerToken();
-                typeSpecifier.Type = "int";
+                typeSpecifier.Tipo = "int";
                 return true;
             }
             if (VerificarToken(TkLong))
             {
                 LerToken();
-                typeSpecifier.Type = "long";
+                typeSpecifier.Tipo = "long";
                 if (VerificarToken(TkLong))
                 {
                     LerToken();
-                    typeSpecifier.Type += " long";
+                    typeSpecifier.Tipo += " long";
                     if (VerificarToken(TkInt))
                     {
                         LerToken();
-                        typeSpecifier.Type += " int";
+                        typeSpecifier.Tipo += " int";
                     }
                 }
                 else if (VerificarToken(TkInt))
                 {
                     LerToken();
-                    typeSpecifier.Type += " int";
+                    typeSpecifier.Tipo += " int";
                 }
                 return true;
             }
             if (VerificarToken(TkFloat))
             {
                 LerToken();
-                typeSpecifier.Type = "float";
+                typeSpecifier.Tipo = "float";
                 return true;
             }
             if (VerificarToken(TkDouble))
             {
                 LerToken();
-                typeSpecifier.Type = "double";
+                typeSpecifier.Tipo = "double";
                 return true;
             }
             return false;
@@ -686,8 +727,10 @@ namespace CCompiler.Common
             var initDeclarator = new Campo();
             var declaratorListRecH = new Campo();
             var declaratorListRecS = new Campo();
+            initDeclarator.Tipo = declaratorList.Tipo;
             if (InitDeclarator(initDeclarator))
             {
+                declaratorListRecH.Tipo = declaratorList.Tipo;
                 declaratorListRecH.Cod = initDeclarator.Cod;
                 if (DeclaratorListRec(declaratorListRecH, declaratorListRecS))
                 {
@@ -706,10 +749,12 @@ namespace CCompiler.Common
             if (VerificarToken(TkVirgula))
             {
                 LerToken();
+                initDeclarator.Tipo = declaratorListRecH.Tipo;
                 if (InitDeclarator(initDeclarator))
                 {
-                    declaratorListRec1H.Cod += EscreverCodigo(initDeclarator.Cod);    
-                    declaratorListRec1H.Cod += EscreverCodigo(declaratorListRecH.Cod);                                    
+                    declaratorListRec1H.Tipo = declaratorListRecH.Tipo;
+                    declaratorListRec1H.Cod += EscreverCodigo(initDeclarator.Cod);
+                    declaratorListRec1H.Cod += EscreverCodigo(declaratorListRecH.Cod);
                     if (DeclaratorListRec(declaratorListRec1H, declaratorListRec1S))
                     {
                         declaratorListRecS.Cod = declaratorListRec1S.Cod;
@@ -729,6 +774,7 @@ namespace CCompiler.Common
         {
             var declarator = new Campo();
             var assignmentExpression = new Campo();
+            declarator.Tipo = initDeclarator.Tipo;
             if (Declarator(declarator))
             {
                 if (VerificarToken(TkAssignment))
@@ -752,6 +798,8 @@ namespace CCompiler.Common
             var expression = new Campo();
             if (VerificarToken(TkId))
             {
+                if (!AdicionarVariavelTab(declarator.Place, declarator.Tipo)) return false;
+
                 declarator.Place = TokenAtual;
                 LerToken();
                 return true;
@@ -775,147 +823,158 @@ namespace CCompiler.Common
             return false;
         }
 
-        // ----------------------------------------------------
-        // Dec -> Tipo {DecLista.Type = Tipo.Type; DecLista.TamanhoVar = Tipo.TamanhoVar} DecLista;
-        // Tipo -> short int {Tipo.Type = short int; Tipo.TamanhoVar = 2}
-        // Tipo -> int {Tipo.Type = int ; Tipo.TamanhoVar = 4}
-        // Tipo -> long int {Tipo.Type = long int; Tipo.TamanhoVar = 4}
-        // Tipo -> long long int {Tipo.Type = long long int; Tipo.TamanhoVar = 8}
-        // Tipo -> double {Tipo.Type = double ; Tipo.TamanhoVar = 8}
-        // Tipo -> float {Tipo.Type = float ; Tipo.TamanhoVar = 4}
-        // DecLista -> id {PoeVariavel(id, ListaDim.ListaVar, endereco); endereco += ListaDim.TamanhoVar;}  {RestoDecLista.Type = DecLista.Type; RestoDecLista.TamanhoVar = DecLista.TamanhoVar;}  RestoDecLista
-        // RestoDecLista -> , {DecLista.Type =  RestoDecLista.Type, DecLista.TamanhoVar =  RestoDecLista.TamanhoVar} DecLista
-        // RestoDecLista -> <vazio>   
-
-        public static bool Dec(Campo dec)
+        public static bool ParametersList(Campo parametersList)
         {
-            var tipo = new Campo();
-            var decLista = new Campo();
-
-            if (Tipo(tipo))
+            var typeSpecifier = new Campo();
+            var initDeclaratorList = new Campo();
+            var parametersListRec = new Campo();
+            if (TypeSpecifier(typeSpecifier))
             {
-                decLista.TamanhoVar = tipo.TamanhoVar;
-                decLista.Type = tipo.Type;
-                if (DecLista(decLista))
+                initDeclaratorList.Tipo = typeSpecifier.Tipo;
+                if (InitDeclarator(initDeclaratorList))
                 {
-                    if (IdTokenAtual == TkPontoVirgula)
+                    if (ParametersListRec(parametersListRec))
                     {
+                        parametersList.Cod = initDeclaratorList.Cod;
+                        parametersList.Cod += EscreverCodigo(parametersListRec.Cod);
                         return true;
                     }
-                    return false;
                 }
-                return false;
             }
-            return false;
-        }
-
-        public static bool DecLista(Campo decLista)
-        {
-            var restoDecLista = new Campo();
-            if (IdTokenAtual == TkId)
-            {
-                LerToken();
-                AdicionarVariavelTabela(TokenAtual, decLista.Type, GerarEndereco(decLista.TamanhoVar));
-
-                restoDecLista.TamanhoVar = decLista.TamanhoVar;
-                restoDecLista.Type = decLista.Type;
-                if (RestoDecLista(restoDecLista))
-                {
-                    return true;
-                }
-                return false;
-            }
-            return false;
-        }
-
-        public static bool RestoDecLista(Campo restoDecLista)
-        {
-            var decLista = new Campo();
-            if (IdTokenAtual == TkVirgula)
-            {
-                LerToken();
-                decLista.Type = restoDecLista.Type;
-                decLista.TamanhoVar = restoDecLista.TamanhoVar;
-
-                if (DecLista(decLista))
-                {
-                    return true;
-                }
-                return false;
-            }
-            // vazio
             return true;
         }
 
-        public static bool Tipo(Campo tipo)
+        public static bool ParametersListRec(Campo parametersListRec)
         {
-            if (IdTokenAtual == TkShort)
+            var typeSpecifier = new Campo();
+            var initDeclaratorList = new Campo();
+            var parametersListRec1 = new Campo();
+            if (VerificarToken(TkVirgula))
             {
                 LerToken();
-                tipo.Type = "short";
-                tipo.TamanhoVar = 2;
-                return true;
-            }
-            else if (IdTokenAtual == TkInt)
-            {
-                LerToken();
-                tipo.Type = "int";
-                tipo.TamanhoVar = 4;
-                return true;
-            }
-            else if (IdTokenAtual == TkDouble)
-            {
-                LerToken();
-                tipo.Type = "double";
-                tipo.TamanhoVar = 8;
-                return true;
-            }
-            else if (IdTokenAtual == TkFloat)
-            {
-                LerToken();
-                tipo.Type = "float";
-                tipo.TamanhoVar = 4;
-                return true;
-            }
-            else if (IdTokenAtual == TkLong)
-            {
-                LerToken();
-                if (IdTokenAtual == TkLong)
+                if (TypeSpecifier(typeSpecifier))
                 {
-                    LerToken();
-                    if (IdTokenAtual == TkInt)
+                    initDeclaratorList.Tipo = typeSpecifier.Tipo;
+                    if (InitDeclarator(initDeclaratorList))
                     {
-                        tipo.Type = "long long int";
-                        tipo.TamanhoVar = 8;
-                        return true;
+                        if (ParametersListRec(parametersListRec1))
+                        {
+                            parametersListRec.Cod = initDeclaratorList.Cod;
+                            parametersListRec.Cod += EscreverCodigo(parametersListRec1.Cod);
+                            return true;
+                        }
                     }
                 }
-                else
+            }
+            return true;
+        }
+
+        public static bool FunctionDefinition(Campo functionDefinition)
+        {
+            var typeSpecifier = new Campo();
+            var declarator = new Campo();
+            var parametersList = new Campo();
+            var compoundStatement = new Campo();
+            if (TypeSpecifier(typeSpecifier))
+            {
+                if (Declarator(declarator))
                 {
-                    tipo.Type = "long int";
-                    tipo.TamanhoVar = 4;
-                    return true;
+                    var scp = new Escopo();
+                    if (!AdicionarVariavelTab(declarator.Place, "proc", scp)) return false;
+                    EscopoAtual = scp;
+
+                    if (VerificarToken(TkAbreParentese))
+                    {
+                        LerToken();
+                        if (ParametersList(parametersList))
+                        {
+                            if (VerificarToken(TkFechaParentese))
+                            {
+                                LerToken();
+                                if (CompoundStatement(compoundStatement))
+                                {
+                                    functionDefinition.Cod += EscreverRotulo(declarator.Place);
+                                    functionDefinition.Cod += EscreverCodigo(declarator.Cod);
+                                    functionDefinition.Cod += EscreverCodigo(parametersList.Cod);
+                                    functionDefinition.Cod += EscreverCodigo(compoundStatement.Cod);
+                                    return true;
+                                }
+                            }
+                        }
+                    }
                 }
             }
             return false;
         }
 
-        // ----------------------------------------------------
-        // Statement -> LabeledStatement | CompoundStatement | ExpressionStatement | SelectionStatement | IterationStatement | JumpStatement
+        public static bool ExternalDeclaration(Campo externalDeclaration)
+        {
+            var functionDefinition = new Campo();
+            var externalDeclaration1 = new Campo();
+            var declaration = new Campo();
+            if (Declaration(declaration))
+            {
+                externalDeclaration.Cod += EscreverCodigo(declaration.Cod);
+                if (ExternalDeclaration(externalDeclaration1))
+                {
+                    externalDeclaration.Cod += EscreverCodigo(externalDeclaration1.Cod);
+                }
+                return true;
+            }
+            else 
+            if (FunctionDefinition(functionDefinition))
+            {
+                externalDeclaration.Cod += EscreverCodigo(functionDefinition.Cod);
+                if (ExternalDeclaration(externalDeclaration1))
+                {
+                    externalDeclaration.Cod += EscreverCodigo(externalDeclaration1.Cod);
+                }
+                return true;
+            }
 
-        // CompoundStatement -> { BlockItemList } | <vazio>
+            return false;
+        }
+
+        // ----------------------------------------------------
+        // Statement -> CompoundStatement | ExpressionStatement | SelectionStatement | IterationStatement | JumpStatement
+
+        // SelectionStatement -> if (Expression) Statement  
+        // SelectionStatement -> if (Expression) Statement else Statement    
+        // SelectionStatement -> switch (Expression) SwitchStatement
+
+        // LabeledStatement -> id : Statement
+        // LabeledStatement -> case cte : Statement
+
+        // SwitchStatement -> default : Statement SwitchStatement
+        // SwitchStatement -> LabeledStatement SwitchStatement
+        // SwitchStatement -> Statement SwitchStatement
+        // SwitchStatement -> <vazio>
+
+        // IterationStatement -> for (Declaration; Expression; Expression) Statement 
+        // IterationStatement -> for (Expression; Expression; Expression) Statement 
+        // IterationStatement -> do Statement while (Expression);
+        // IterationStatement -> while (Expression) Statement;
+
+        // JumpStatement -> break;
+        // JumpStatement -> continue;
+
+        // CompoundStatement -> { BlockItemList } 
+        // CompoundStatement -> <vazio>        
+
         // BlockItemList -> BlockItem | BlockItemList BlockItem
+
+        // BlockItem -> Declaration 
+        // BlockItem -> Statement
         // BlockItem -> Declaration Statement
 
-        // ExpressionStatement -> Expression; | ;
-
-        // SelectionStatement -> if (E) CMD  | if (E) Statement  else Statement    
+        // ExpressionStatement -> Expression;
+        // ExpressionStatement -> ;
 
         // Expression -> AssigmentExpression ExpressionRec
-        // ExpressionRec -> , AssigmentExpression ExpressionRec | <vazio>
+        // ExpressionRec -> , AssigmentExpression ExpressionRec 
+        // ExpressionRec -> <vazio>
 
         // AssigmentExpression -> LogicalOrExpression AssigmentExpression
-
         // AssigmentExpression -> = AssigmentExpression 
         // AssigmentExpression -> *= AssigmentExpression 
         // AssigmentExpression -> /= AssigmentExpression       
@@ -931,13 +990,9 @@ namespace CCompiler.Common
         // LogicalAndExpressionRec -> && InclusiveOrExpression LogicalAndExpressionRec
         // LogicalAndExpressionRec -> <vazio>
 
-        // InclusiveOrExpression -> ExclusiveOrExpression InclusiveOrExpressionRec
-        // InclusiveOrExpressionRec -> | ExclusiveOrExpression InclusiveOrExpressionRec
-        // InclusiveOrExpressionRec -> <vazio>
-
-        // ExclusiveOrExpression -> AndExpression ExclusiveOrExpressionRec
-        // ExclusiveOrExpressionRec -> ^ AndExpression ExclusiveOrExpressionRec
-        // ExclusiveOrExpressionRec -> <vazio>
+        // InclusiveOrExpression -> AndExpression InclusiveOrExpressionRec
+        // InclusiveOrExpressionRec -> | AndExpression InclusiveOrExpressionRec
+        // InclusiveOrExpressionRec -> <vazio>       
 
         // AndExpression -> EqualityExpression AndExpressionRec
         // AndExpressionRec -> & EqualityExpression AndExpressionRec
@@ -964,7 +1019,11 @@ namespace CCompiler.Common
         // MultiplicativeExpressionRec -> * PrimaryExpression MultiplicativeExpressionRec
         // MultiplicativeExpressionRec -> / PrimaryExpression MultiplicativeExpressionRec
         // MultiplicativeExpressionRec -> % PrimaryExpression MultiplicativeExpressionRec
-        // MultiplicativeExpressionRec -> <vazio>      
+        // MultiplicativeExpressionRec -> <vazio>   
+
+        // PrimaryExpression -> id
+        // PrimaryExpression -> cte
+        // PrimaryExpression -> (Expression)
 
         // ----------------------------------------------------
 
@@ -1153,10 +1212,29 @@ namespace CCompiler.Common
             var compoundStatement = new Campo();
             var expressionStatement = new Campo();
             var selectionStatement = new Campo();
+            var iterationStatement = new Campo();
+            var jumpStatement = new Campo();
+
+            jumpStatement.Rotulo1 = statement.Rotulo1;
+            jumpStatement.Rotulo2 = statement.Rotulo2;
+
+            compoundStatement.Rotulo1 = statement.Rotulo1;
+            compoundStatement.Rotulo2 = statement.Rotulo2;
+
+            selectionStatement.Rotulo1 = statement.Rotulo1;
+            selectionStatement.Rotulo2 = statement.Rotulo2;
+
+            iterationStatement.Rotulo1 = statement.Rotulo1;
+            iterationStatement.Rotulo2 = statement.Rotulo2;
 
             if (CompoundStatement(compoundStatement))
             {
                 statement.Cod = compoundStatement.Cod;
+                return true;
+            }
+            else if (IterationStatement(iterationStatement))
+            {
+                statement.Cod = iterationStatement.Cod;
                 return true;
             }
             else if (SelectionStatement(selectionStatement))
@@ -1167,6 +1245,11 @@ namespace CCompiler.Common
             else if (ExpressionStatement(expressionStatement))
             {
                 statement.Cod = expressionStatement.Cod;
+                return true;
+            }
+            else if (JumpStatement(jumpStatement))
+            {
+                statement.Cod = jumpStatement.Cod;
                 return true;
             }
             return false;
@@ -1200,8 +1283,14 @@ namespace CCompiler.Common
         {
             var blockItem = new Campo();
             var blockItemList1 = new Campo();
+
+            // propaga os labels 
+            blockItem.Rotulo2 = blockItemList.Rotulo2;
+            blockItem.Rotulo1 = blockItemList.Rotulo1;
             if (BlockItem(blockItem))
             {
+                blockItemList1.Rotulo2 = blockItem.Rotulo2;
+                blockItemList1.Rotulo1 = blockItem.Rotulo1;
                 blockItemList.Cod = blockItem.Cod;
                 if (BlockItemList(blockItemList1))
                 {
@@ -1217,6 +1306,9 @@ namespace CCompiler.Common
         {
             var declaration = new Campo();
             var statement = new Campo();
+            statement.Rotulo1 = blockItem.Rotulo1;
+            statement.Rotulo2 = blockItem.Rotulo2;
+
             if (Declaration(declaration))
             {
                 blockItem.Cod = EscreverCodigo(declaration.Cod);
@@ -1227,39 +1319,200 @@ namespace CCompiler.Common
                 }
                 return true;
             }
+            else if (Statement(statement))
+            {
+                blockItem.Cod += EscreverCodigo(statement.Cod);
+                return true;
+            }
             return false;
 
         }
 
-        public static bool SelectionStatement(Campo selectionStatement)
+        public static bool IterationStatement(Campo iterationStatement)
         {
-            var c = new Campo();
-            var statement1 = new Campo();
-            var statement2 = new Campo();
+            var expression = new Campo();
+            var expression2 = new Campo();
+            var expression3 = new Campo();
+            var statement = new Campo();
+            var declaration = new Campo();
 
-            if (IdTokenAtual == TkIf)
+            if (VerificarToken(TkFor))
             {
                 LerToken();
-                if (IdTokenAtual == TkAbreParentese)
+                if (VerificarToken(TkAbreParentese))
                 {
                     LerToken();
-                    if (C(c))
+                    if (Declaration(declaration))
                     {
-                        if (IdTokenAtual == TkFechaParentese)
+                        if (Expression(expression2))
+                        {
+                            if (VerificarToken(TkPontoVirgula))
+                            {
+                                LerToken();
+                                if (Expression(expression3))
+                                {
+                                    if (VerificarToken(TkFechaParentese))
+                                    {
+                                        LerToken();
+                                        statement.Rotulo1 = GerarRotulo();
+                                        statement.Rotulo2 = GerarRotulo();
+                                        if (Statement(statement))
+                                        {
+                                            iterationStatement.Cod += EscreverCodigo(declaration.Cod);
+                                            iterationStatement.Cod += EscreverRotulo(statement.Rotulo1);
+
+                                            iterationStatement.Cod += EscreverCodigo(expression2.Cod);
+                                            iterationStatement.Cod += EscreverCodigoIfZ(expression2.Place, statement.Rotulo2);
+
+                                            iterationStatement.Cod += EscreverCodigo(statement.Cod);
+                                            iterationStatement.Cod += EscreverCodigo(expression3.Cod);
+                                            iterationStatement.Cod += EscreverCodigo("goto {0}", statement.Rotulo1);
+                                            iterationStatement.Cod += EscreverRotulo(statement.Rotulo2);
+                                            return true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else if (Expression(expression))
+                    {
+                        if (VerificarToken(TkPontoVirgula))
+                        {
+                            LerToken();
+                            if (Expression(expression2))
+                            {
+                                if (VerificarToken(TkPontoVirgula))
+                                {
+                                    LerToken();
+                                    if (Expression(expression3))
+                                    {
+                                        if (VerificarToken(TkFechaParentese))
+                                        {
+                                            LerToken();
+                                            if (Statement(statement))
+                                            {
+                                                iterationStatement.Cod += EscreverCodigo(expression.Cod);
+                                                iterationStatement.Cod += EscreverRotulo(statement.Rotulo1);
+
+                                                iterationStatement.Cod += EscreverCodigo(expression2.Cod);
+                                                iterationStatement.Cod += EscreverCodigoIfZ(expression2.Place, statement.Rotulo2);
+
+                                                iterationStatement.Cod += EscreverCodigo(statement.Cod);
+                                                iterationStatement.Cod += EscreverCodigo(expression3.Cod);
+                                                iterationStatement.Cod += EscreverCodigo("goto {0}", statement.Rotulo1);
+                                                iterationStatement.Cod += EscreverRotulo(statement.Rotulo2);
+                                                return true;
+
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else if (VerificarToken(TkDo))
+            {
+                LerToken();
+                statement.Rotulo1 = GerarRotulo();
+                statement.Rotulo2 = GerarRotulo();
+                if (Statement(statement))
+                {
+                    if (VerificarToken(TkWhile))
+                    {
+                        LerToken();
+                        if (VerificarToken(TkAbreParentese))
+                        {
+                            LerToken();
+                            if (Expression(expression))
+                            {
+                                if (VerificarToken(TkFechaParentese))
+                                {
+                                    LerToken();
+                                    if (VerificarToken(TkPontoVirgula))
+                                    {
+                                        LerToken();
+                                        iterationStatement.Cod += EscreverRotulo(statement.Rotulo1);
+                                        iterationStatement.Cod += EscreverCodigo(statement.Cod);
+                                        iterationStatement.Cod += EscreverCodigo(expression.Cod);
+                                        iterationStatement.Cod += EscreverCodigoIf(expression.Place, statement.Rotulo1);
+                                        iterationStatement.Cod += EscreverCodigo("goto {0}", statement.Rotulo2);
+                                        iterationStatement.Cod += EscreverRotulo(statement.Rotulo2);
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else if (VerificarToken(TkWhile))
+            {
+                LerToken();
+                if (VerificarToken(TkAbreParentese))
+                {
+                    LerToken();
+                    if (Expression(expression))
+                    {
+                        if (VerificarToken(TkFechaParentese))
                         {
                             LerToken();
 
-                            statement1.Rotulo1 = GerarRotulo();
-                            statement1.Rotulo2 = GerarRotulo();
+                            statement.Rotulo1 = GerarRotulo();
+                            statement.Rotulo2 = GerarRotulo();
+                            if (Statement(statement))
+                            {
+                                iterationStatement.Cod += EscreverRotulo(statement.Rotulo1);
+                                iterationStatement.Cod += EscreverCodigo(expression.Cod);
+                                iterationStatement.Cod += EscreverCodigoIfZ(expression.Place, statement.Rotulo2);
+                                iterationStatement.Cod += EscreverCodigo(statement.Cod);
+                                iterationStatement.Cod += EscreverCodigo("goto {0}", statement.Rotulo1);
+                                iterationStatement.Cod += EscreverRotulo(statement.Rotulo2);
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        public static bool SelectionStatement(Campo selectionStatement)
+        {
+            var expression = new Campo();
+            var statement1 = new Campo();
+            var statement2 = new Campo();
+            var switchStatement = new Campo();
+
+            if (VerificarToken(TkIf))
+            {
+                LerToken();
+                if (VerificarToken(TkAbreParentese))
+                {
+                    LerToken();
+                    if (Expression(expression))
+                    {
+                        if (VerificarToken(TkFechaParentese))
+                        {
+                            LerToken();
+
+                            //statement1.Rotulo1 = GerarRotulo();
+                            //statement1.Rotulo2 = GerarRotulo();
+                            statement1.Rotulo1 = selectionStatement.Rotulo1; // aqui vai ser rotulo do while
+                            statement1.Rotulo2 = selectionStatement.Rotulo2;
                             if (Statement(statement1))
                             {
-                                if (IdTokenAtual == TkElse)
+                                statement1.Rotulo1 = GerarRotulo();
+                                statement1.Rotulo2 = GerarRotulo();
+                                if (VerificarToken(TkElse))
                                 {
                                     LerToken();
                                     if (Statement(statement2))
                                     {
-                                        selectionStatement.Cod += EscreverCodigo(c.Cod);
-                                        selectionStatement.Cod += EscreverCodigoIfZ(c.Place, statement1.Rotulo1); // goto else                                    
+                                        selectionStatement.Cod += EscreverCodigo(expression.Cod);
+                                        selectionStatement.Cod += EscreverCodigoIfZ(expression.Place, statement1.Rotulo1); // goto else                                    
                                         selectionStatement.Cod += EscreverCodigo(statement1.Cod);
                                         selectionStatement.Cod += EscreverCodigo("goto {0}", statement1.Rotulo2);
                                         selectionStatement.Cod += EscreverRotulo(statement1.Rotulo1);
@@ -1270,8 +1523,8 @@ namespace CCompiler.Common
                                 }
                                 else
                                 {
-                                    selectionStatement.Cod += EscreverCodigo(c.Cod);
-                                    selectionStatement.Cod += EscreverCodigoIfZ(c.Place, statement1.Rotulo1); // goto else                                    
+                                    selectionStatement.Cod += EscreverCodigo(expression.Cod);
+                                    selectionStatement.Cod += EscreverCodigoIfZ(expression.Place, statement1.Rotulo1); // goto else                                    
                                     selectionStatement.Cod += EscreverCodigo(statement1.Cod);
                                     selectionStatement.Cod += EscreverRotulo(statement1.Rotulo1);
                                     return true;
@@ -1280,6 +1533,184 @@ namespace CCompiler.Common
                         }
                     }
                 }
+            }
+            else if (VerificarToken(TkSwitch))
+            {
+                LerToken();
+                if (VerificarToken(TkAbreParentese))
+                {
+                    LerToken();
+                    if (Expression(expression))
+                    {
+                        if (VerificarToken(TkFechaParentese))
+                        {
+                            LerToken();
+
+                            if (VerificarToken(TkAbreChaves))
+                            {
+                                LerToken();
+                                switchStatement.Rotulo2 = GerarRotulo(); // rotulo para o fim 
+                                switchStatement.Place = expression.Place; // Esse vai ser a comparação nos testes dos cases
+                                if (SwitchStatement(switchStatement))
+                                {
+                                    if (VerificarToken(TkFechaChaves))
+                                    {
+                                        LerToken();
+
+                                        selectionStatement.Cod += EscreverCodigo(expression.Cod);
+                                        selectionStatement.Cod += EscreverCodigo(switchStatement.Cod); // aqui vai ter os ifs
+                                        if (!string.IsNullOrEmpty(switchStatement.RotuloDefault))
+                                            selectionStatement.Cod += EscreverCodigo("goto {0}", switchStatement.RotuloDefault);
+                                        selectionStatement.Cod += EscreverCodigo(switchStatement.CodTestesSwitch); // aqui vai ter os ifs
+                                        selectionStatement.Cod += EscreverRotulo(switchStatement.Rotulo2);
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        public static bool SwitchStatement(Campo switchStatement)
+        {
+            var statement = new Campo();
+            var labeledStatement = new Campo();
+            var switchStatement1 = new Campo();
+
+            labeledStatement.Rotulo1 = switchStatement.Rotulo1;
+            labeledStatement.Rotulo2 = switchStatement.Rotulo2;
+            statement.Rotulo1 = switchStatement.Rotulo1;
+            statement.Rotulo2 = switchStatement.Rotulo2;
+            switchStatement1.Rotulo1 = switchStatement.Rotulo1;
+            switchStatement1.Rotulo2 = switchStatement.Rotulo2;
+            if (LabeledStatement(labeledStatement))
+            {
+                switchStatement.Cod += EscreverCodigoIf(switchStatement.Place, "==", labeledStatement.Place, labeledStatement.Rotulo1);
+                switchStatement1.Place = switchStatement.Place;
+                switchStatement1.CodTestesSwitch += labeledStatement.CodTestesSwitch;
+                if (SwitchStatement(switchStatement1))
+                {
+                    switchStatement.RotuloDefault = switchStatement1.RotuloDefault;
+                    switchStatement.Cod += EscreverCodigo(switchStatement1.Cod);
+                    switchStatement.CodTestesSwitch += EscreverCodigo(switchStatement1.CodTestesSwitch);
+                }
+                return true;
+            }
+            else if (Statement(statement))
+            {
+                switchStatement.CodTestesSwitch += statement.Cod;
+                switchStatement1.Place = switchStatement.Place;
+                if (SwitchStatement(switchStatement1))
+                {
+                    switchStatement.RotuloDefault = switchStatement1.RotuloDefault;
+                    switchStatement.Cod += EscreverCodigo(switchStatement1.Cod);
+                    switchStatement.CodTestesSwitch += EscreverCodigo(switchStatement1.CodTestesSwitch);
+                }
+                return true;
+            }
+            else if (VerificarToken(TkDefault))
+            {
+                LerToken();
+                if (!string.IsNullOrEmpty(switchStatement.RotuloDefault))
+                {
+                    GerarExcessao(new[] { "case", "id" });
+                    return false;
+                }
+
+                if (VerificarToken(TkDoisPontos))
+                {
+                    LerToken();
+                    if (Statement(statement))
+                    {
+                        switchStatement.RotuloDefault = GerarRotulo();
+                        switchStatement1.Place = switchStatement.Place;
+                        if (SwitchStatement(switchStatement1))
+                        {
+                            switchStatement.Cod += EscreverCodigo(switchStatement1.Cod);
+                            switchStatement.CodTestesSwitch += EscreverCodigo(switchStatement1.CodTestesSwitch);
+                        }
+
+                        switchStatement.CodTestesSwitch += EscreverRotulo(switchStatement.RotuloDefault);
+                        switchStatement.CodTestesSwitch += EscreverCodigo(statement.Cod);
+                        return true;
+                    }
+                }
+            }
+            return true;
+        }
+
+        public static bool LabeledStatement(Campo labeledStatement)
+        {
+            var statement = new Campo();
+
+            if (VerificarToken(TkId))
+            {
+                LerToken();
+                if (VerificarToken(TkDoisPontos))
+                {
+                    LerToken();
+                    statement.Rotulo1 = labeledStatement.Rotulo1;
+                    statement.Rotulo2 = labeledStatement.Rotulo2;
+                    if (Statement(statement))
+                    {
+                        labeledStatement.Rotulo1 = GerarRotulo();
+                        labeledStatement.CodTestesSwitch += EscreverRotulo(labeledStatement.Rotulo1);
+                        labeledStatement.CodTestesSwitch += EscreverCodigo(statement.Cod);
+                        return true;
+                    }
+                }
+            }
+            else if (VerificarToken(TkCase))
+            {
+                LerToken();
+                if (VerificarToken(TkConst))
+                {
+                    labeledStatement.Place = TokenAtual;
+                    LerToken();
+                    if (VerificarToken(TkDoisPontos))
+                    {
+                        LerToken();
+                        statement.Rotulo1 = labeledStatement.Rotulo1;
+                        statement.Rotulo2 = labeledStatement.Rotulo2;
+                        if (Statement(statement))
+                        {
+
+                            labeledStatement.Rotulo1 = GerarRotulo();
+                            labeledStatement.CodTestesSwitch += EscreverRotulo(labeledStatement.Rotulo1);
+                            labeledStatement.CodTestesSwitch += EscreverCodigo(statement.Cod);
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        public static bool JumpStatement(Campo jumpStatement)
+        {
+
+            if (VerificarToken(TkBreak))
+            {
+                if (string.IsNullOrEmpty(jumpStatement.Rotulo2))
+                    return false;
+
+                jumpStatement.Cod += EscreverCodigo("goto {0}", jumpStatement.Rotulo2);
+                LerToken();
+                return true;
+
+            }
+            else if (VerificarToken(TkContinue))
+            {
+                if (string.IsNullOrEmpty(jumpStatement.Rotulo1))
+                    return false;
+
+                jumpStatement.Cod += EscreverCodigo("goto {0}", jumpStatement.Rotulo1);
+                LerToken();
+                return true;
+
             }
             return false;
         }
@@ -1457,10 +1888,21 @@ namespace CCompiler.Common
                 LerToken();
                 if (LogicalAndExpression(logicalAndExpression))
                 {
+                    var lblFim = GerarRotulo();
+                    var lblAvalSegExpressao = GerarRotulo();
                     logicalOrExpressionRec1H.Place = GerarTemp();
                     logicalOrExpressionRec1H.Cod += EscreverCodigo(logicalOrExpressionRecH.Cod);
+
+                    logicalOrExpressionRec1H.Cod += EscreverCodigoIf(logicalOrExpressionRecH.Place, "=", "0", lblAvalSegExpressao);
+                    logicalOrExpressionRec1H.Cod += EscreverCodigo(string.Empty, logicalAndExpression.Place, "1", string.Empty);
+                    logicalOrExpressionRec1H.Cod += EscreverCodigo("goto {0}", lblFim);
+
+                    logicalOrExpressionRec1H.Cod += EscreverRotulo(lblAvalSegExpressao);
                     logicalOrExpressionRec1H.Cod += EscreverCodigo(logicalAndExpression.Cod);
-                    logicalOrExpressionRec1H.Cod += EscreverCodigo("||", logicalOrExpressionRec1H.Place, logicalOrExpressionRecH.Place, logicalAndExpression.Place);
+
+                    logicalOrExpressionRec1H.Cod += EscreverRotulo(lblFim);
+                    logicalOrExpressionRec1H.Cod += EscreverCodigo("or", logicalOrExpressionRec1H.Place, logicalOrExpressionRecH.Place, logicalAndExpression.Place);
+
                     if (LogicalOrExpressionRec(logicalOrExpressionRec1H, logicalOrExpressionRec1S))
                     {
                         logicalOrExpressionRecS.Cod = logicalOrExpressionRec1S.Cod;
@@ -1507,10 +1949,21 @@ namespace CCompiler.Common
                 LerToken();
                 if (InclusiveOrExpression(inclusiveOrExpression))
                 {
+                    var lblFim = GerarRotulo();
+                    var lblAvalSegExpressao = GerarRotulo();
                     logicalAndExpressionRec1H.Place = GerarTemp();
                     logicalAndExpressionRec1H.Cod += EscreverCodigo(logicalAndExpressionRecH.Cod);
+
+                    logicalAndExpressionRec1H.Cod += EscreverCodigoIf(logicalAndExpressionRecH.Place, "=", "1", lblAvalSegExpressao);
+                    logicalAndExpressionRec1H.Cod += EscreverCodigo(string.Empty, inclusiveOrExpression.Place, "0", string.Empty);
+                    logicalAndExpressionRec1H.Cod += EscreverCodigo("goto {0}", lblFim);
+
+                    logicalAndExpressionRec1H.Cod += EscreverRotulo(lblAvalSegExpressao);
                     logicalAndExpressionRec1H.Cod += EscreverCodigo(inclusiveOrExpression.Cod);
-                    logicalAndExpressionRec1H.Cod += EscreverCodigo("&&", logicalAndExpressionRec1H.Place, logicalAndExpressionRecH.Place, inclusiveOrExpression.Place);
+
+                    logicalAndExpressionRec1H.Cod += EscreverRotulo(lblFim);
+                    logicalAndExpressionRec1H.Cod += EscreverCodigo("and", logicalAndExpressionRec1H.Place, logicalAndExpressionRecH.Place, inclusiveOrExpression.Place);
+
                     if (LogicalAndExpressionRec(logicalAndExpressionRec1H, logicalAndExpressionRec1S))
                     {
                         logicalAndExpressionRecS.Cod = logicalAndExpressionRec1S.Cod;
@@ -1530,13 +1983,13 @@ namespace CCompiler.Common
 
         public static bool InclusiveOrExpression(Campo inclusiveOrExpression)
         {
-            var exclusiveOrExpression = new Campo();
+            var andOrExpression = new Campo();
             var inclusiveOrExpressionRecH = new Campo();
             var inclusiveOrExpressionRecS = new Campo();
-            if (ExclusiveOrExpression(exclusiveOrExpression))
+            if (AndExpression(andOrExpression))
             {
-                inclusiveOrExpressionRecH.Cod = exclusiveOrExpression.Cod;
-                inclusiveOrExpressionRecH.Place = exclusiveOrExpression.Place;
+                inclusiveOrExpressionRecH.Cod = andOrExpression.Cod;
+                inclusiveOrExpressionRecH.Place = andOrExpression.Place;
                 if (InclusiveOrExpressionRec(inclusiveOrExpressionRecH, inclusiveOrExpressionRecS))
                 {
                     inclusiveOrExpression.Cod = inclusiveOrExpressionRecS.Cod;
@@ -1549,18 +2002,18 @@ namespace CCompiler.Common
 
         public static bool InclusiveOrExpressionRec(Campo inclusiveOrExpressionRecH, Campo inclusiveOrExpressionRecS)
         {
-            var exclusiveOrExpression = new Campo();
+            var andOrExpression = new Campo();
             var inclusiveOrExpressionRec1H = new Campo();
             var inclusiveOrExpressionRec1S = new Campo();
             if (VerificarToken(TkOr))
             {
                 LerToken();
-                if (ExclusiveOrExpression(exclusiveOrExpression))
+                if (AndExpression(andOrExpression))
                 {
                     inclusiveOrExpressionRec1H.Place = GerarTemp();
                     inclusiveOrExpressionRec1H.Cod += EscreverCodigo(inclusiveOrExpressionRecH.Cod);
-                    inclusiveOrExpressionRec1H.Cod += EscreverCodigo(exclusiveOrExpression.Cod);
-                    inclusiveOrExpressionRec1H.Cod += EscreverCodigo("|", inclusiveOrExpressionRec1H.Place, inclusiveOrExpressionRecH.Place, exclusiveOrExpression.Place);
+                    inclusiveOrExpressionRec1H.Cod += EscreverCodigo(andOrExpression.Cod);
+                    inclusiveOrExpressionRec1H.Cod += EscreverCodigo("or", inclusiveOrExpressionRec1H.Place, inclusiveOrExpressionRecH.Place, andOrExpression.Place);
                     if (InclusiveOrExpressionRec(inclusiveOrExpressionRec1H, inclusiveOrExpressionRec1S))
                     {
                         inclusiveOrExpressionRecS.Cod = inclusiveOrExpressionRec1S.Cod;
@@ -1574,56 +2027,6 @@ namespace CCompiler.Common
             {
                 inclusiveOrExpressionRecS.Cod = inclusiveOrExpressionRecH.Cod;
                 inclusiveOrExpressionRecS.Place = inclusiveOrExpressionRecH.Place;
-                return true;
-            }
-        }
-
-        public static bool ExclusiveOrExpression(Campo exclusiveOrExpression)
-        {
-            var andExpression = new Campo();
-            var exclusiveOrExpressionRecH = new Campo();
-            var exclusiveOrExpressionRecS = new Campo();
-            if (AndExpression(andExpression))
-            {
-                exclusiveOrExpressionRecH.Cod = andExpression.Cod;
-                exclusiveOrExpressionRecH.Place = andExpression.Place;
-                if (ExclusiveOrExpressionRec(exclusiveOrExpressionRecH, exclusiveOrExpressionRecS))
-                {
-                    exclusiveOrExpression.Cod = exclusiveOrExpressionRecS.Cod;
-                    exclusiveOrExpression.Place = exclusiveOrExpressionRecS.Place;
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        public static bool ExclusiveOrExpressionRec(Campo exclusiveOrExpressionRecH, Campo exclusiveOrExpressionRecS)
-        {
-            var andExpression = new Campo();
-            var exclusiveOrExpressionRec1H = new Campo();
-            var exclusiveOrExpressionRec1S = new Campo();
-            if (VerificarToken(TkExclusiveOr))
-            {
-                LerToken();
-                if (AndExpression(andExpression))
-                {
-                    exclusiveOrExpressionRec1H.Place = GerarTemp();
-                    exclusiveOrExpressionRec1H.Cod += EscreverCodigo(exclusiveOrExpressionRecH.Cod);
-                    exclusiveOrExpressionRec1H.Cod += EscreverCodigo(andExpression.Cod);
-                    exclusiveOrExpressionRec1H.Cod += EscreverCodigo("^", exclusiveOrExpressionRec1H.Place, exclusiveOrExpressionRecH.Place, andExpression.Place);
-                    if (ExclusiveOrExpressionRec(exclusiveOrExpressionRec1H, exclusiveOrExpressionRec1S))
-                    {
-                        exclusiveOrExpressionRecS.Cod = exclusiveOrExpressionRec1S.Cod;
-                        exclusiveOrExpressionRecS.Place = exclusiveOrExpressionRec1S.Place;
-                        return true;
-                    }
-                }
-                return false;
-            }
-            else
-            {
-                exclusiveOrExpressionRecS.Cod = exclusiveOrExpressionRecH.Cod;
-                exclusiveOrExpressionRecS.Place = exclusiveOrExpressionRecH.Place;
                 return true;
             }
         }
@@ -1660,7 +2063,7 @@ namespace CCompiler.Common
                     andExpressionRec1H.Place = GerarTemp();
                     andExpressionRec1H.Cod += EscreverCodigo(andExpressionRecH.Cod);
                     andExpressionRec1H.Cod += EscreverCodigo(equalityExpression.Cod);
-                    andExpressionRec1H.Cod += EscreverCodigo("&", andExpressionRec1H.Place, andExpressionRecH.Place, equalityExpression.Place);
+                    andExpressionRec1H.Cod += EscreverCodigo("and", andExpressionRec1H.Place, andExpressionRecH.Place, equalityExpression.Place);
                     if (AndExpressionRec(andExpressionRec1H, andExpressionRec1S))
                     {
                         andExpressionRecS.Cod = andExpressionRec1S.Cod;
@@ -1710,7 +2113,18 @@ namespace CCompiler.Common
                     equalityExpressionRec1H.Place = GerarTemp();
                     equalityExpressionRec1H.Cod += EscreverCodigo(equalityExpressionRecH.Cod);
                     equalityExpressionRec1H.Cod += EscreverCodigo(relationalExpression.Cod);
-                    equalityExpressionRec1H.Cod += EscreverCodigo("==", equalityExpressionRec1H.Place, equalityExpressionRecH.Place, relationalExpression.Place);
+
+                    var lblTrue = GerarRotulo();
+                    var lblFim = GerarRotulo();
+
+                    equalityExpressionRec1H.Cod += EscreverCodigoIf(equalityExpressionRecH.Place, "=", relationalExpression.Place, lblTrue);
+                    equalityExpressionRec1H.Cod += EscreverCodigo(string.Empty, equalityExpressionRec1H.Place, "0", string.Empty);
+                    equalityExpressionRec1H.Cod += EscreverCodigo("goto {0}", lblFim);
+                    equalityExpressionRec1H.Cod += EscreverRotulo(lblTrue);
+                    equalityExpressionRec1H.Cod += EscreverCodigo(string.Empty, equalityExpressionRec1H.Place, "1", string.Empty);
+                    equalityExpressionRec1H.Cod += EscreverRotulo(lblFim);
+
+                    //equalityExpressionRec1H.Cod += EscreverCodigo("==", equalityExpressionRec1H.Place, equalityExpressionRecH.Place, relationalExpression.Place);
                     if (EqualityExpressionRec(equalityExpressionRec1H, equalityExpressionRec1S))
                     {
                         equalityExpressionRecS.Cod = equalityExpressionRec1S.Cod;
@@ -1728,7 +2142,18 @@ namespace CCompiler.Common
                     equalityExpressionRec1H.Place = GerarTemp();
                     equalityExpressionRec1H.Cod += EscreverCodigo(equalityExpressionRecH.Cod);
                     equalityExpressionRec1H.Cod += EscreverCodigo(relationalExpression.Cod);
-                    equalityExpressionRec1H.Cod += EscreverCodigo("!=", equalityExpressionRec1H.Place, equalityExpressionRecH.Place, relationalExpression.Place);
+
+                    var lblTrue = GerarRotulo();
+                    var lblFim = GerarRotulo();
+
+                    equalityExpressionRec1H.Cod += EscreverCodigoIf(equalityExpressionRecH.Place, "!=", relationalExpression.Place, lblTrue);
+                    equalityExpressionRec1H.Cod += EscreverCodigo(string.Empty, equalityExpressionRec1H.Place, "0", string.Empty);
+                    equalityExpressionRec1H.Cod += EscreverCodigo("goto {0}", lblFim);
+                    equalityExpressionRec1H.Cod += EscreverRotulo(lblTrue);
+                    equalityExpressionRec1H.Cod += EscreverCodigo(string.Empty, equalityExpressionRec1H.Place, "1", string.Empty);
+                    equalityExpressionRec1H.Cod += EscreverRotulo(lblFim);
+
+                    //equalityExpressionRec1H.Cod += EscreverCodigo("!=", equalityExpressionRec1H.Place, equalityExpressionRecH.Place, relationalExpression.Place);
                     if (EqualityExpressionRec(equalityExpressionRec1H, equalityExpressionRec1S))
                     {
                         equalityExpressionRecS.Cod = equalityExpressionRec1S.Cod;
@@ -1778,7 +2203,18 @@ namespace CCompiler.Common
                     relationalExpressionRec1H.Place = GerarTemp();
                     relationalExpressionRec1H.Cod += EscreverCodigo(relationalExpressionRecH.Cod);
                     relationalExpressionRec1H.Cod += EscreverCodigo(addictiveExpression.Cod);
-                    relationalExpressionRec1H.Cod += EscreverCodigo("<", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
+
+                    var lblTrue = GerarRotulo();
+                    var lblFim = GerarRotulo();
+
+                    relationalExpressionRec1H.Cod += EscreverCodigoIf(relationalExpressionRecH.Place, "<", addictiveExpression.Place, lblTrue);
+                    relationalExpressionRec1H.Cod += EscreverCodigo(string.Empty, relationalExpressionRec1H.Place, "0", string.Empty);
+                    relationalExpressionRec1H.Cod += EscreverCodigo("goto {0}", lblFim);
+                    relationalExpressionRec1H.Cod += EscreverRotulo(lblTrue);
+                    relationalExpressionRec1H.Cod += EscreverCodigo(string.Empty, relationalExpressionRec1H.Place, "1", string.Empty);
+                    relationalExpressionRec1H.Cod += EscreverRotulo(lblFim);
+
+                    //relationalExpressionRec1H.Cod += EscreverCodigoIf("<", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
                     if (RelationalExpressionRec(relationalExpressionRec1H, relationalExpressionRec1S))
                     {
                         relationalExpressionRecS.Cod = relationalExpressionRec1S.Cod;
@@ -1796,7 +2232,18 @@ namespace CCompiler.Common
                     relationalExpressionRec1H.Place = GerarTemp();
                     relationalExpressionRec1H.Cod += EscreverCodigo(relationalExpressionRecH.Cod);
                     relationalExpressionRec1H.Cod += EscreverCodigo(addictiveExpression.Cod);
-                    relationalExpressionRec1H.Cod += EscreverCodigo(">", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
+
+                    var lblTrue = GerarRotulo();
+                    var lblFim = GerarRotulo();
+
+                    relationalExpressionRec1H.Cod += EscreverCodigoIf(relationalExpressionRecH.Place, ">", addictiveExpression.Place, lblTrue);
+                    relationalExpressionRec1H.Cod += EscreverCodigo(string.Empty, relationalExpressionRec1H.Place, "0", string.Empty);
+                    relationalExpressionRec1H.Cod += EscreverCodigo("goto {0}", lblFim);
+                    relationalExpressionRec1H.Cod += EscreverRotulo(lblTrue);
+                    relationalExpressionRec1H.Cod += EscreverCodigo(string.Empty, relationalExpressionRec1H.Place, "1", string.Empty);
+                    relationalExpressionRec1H.Cod += EscreverRotulo(lblFim);
+
+                    //relationalExpressionRec1H.Cod += EscreverCodigo(">", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
                     if (RelationalExpressionRec(relationalExpressionRec1H, relationalExpressionRec1S))
                     {
                         relationalExpressionRecS.Cod = relationalExpressionRec1S.Cod;
@@ -1814,7 +2261,18 @@ namespace CCompiler.Common
                     relationalExpressionRec1H.Place = GerarTemp();
                     relationalExpressionRec1H.Cod += EscreverCodigo(relationalExpressionRecH.Cod);
                     relationalExpressionRec1H.Cod += EscreverCodigo(addictiveExpression.Cod);
-                    relationalExpressionRec1H.Cod += EscreverCodigo("<=", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
+
+                    var lblTrue = GerarRotulo();
+                    var lblFim = GerarRotulo();
+
+                    relationalExpressionRec1H.Cod += EscreverCodigoIf(relationalExpressionRecH.Place, "<=", addictiveExpression.Place, lblTrue);
+                    relationalExpressionRec1H.Cod += EscreverCodigo(string.Empty, relationalExpressionRec1H.Place, "0", string.Empty);
+                    relationalExpressionRec1H.Cod += EscreverCodigo("goto {0}", lblFim);
+                    relationalExpressionRec1H.Cod += EscreverRotulo(lblTrue);
+                    relationalExpressionRec1H.Cod += EscreverCodigo(string.Empty, relationalExpressionRec1H.Place, "1", string.Empty);
+                    relationalExpressionRec1H.Cod += EscreverRotulo(lblFim);
+
+                    //relationalExpressionRec1H.Cod += EscreverCodigo("<=", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
                     if (RelationalExpressionRec(relationalExpressionRec1H, relationalExpressionRec1S))
                     {
                         relationalExpressionRecS.Cod = relationalExpressionRec1S.Cod;
@@ -1832,7 +2290,18 @@ namespace CCompiler.Common
                     relationalExpressionRec1H.Place = GerarTemp();
                     relationalExpressionRec1H.Cod += EscreverCodigo(relationalExpressionRecH.Cod);
                     relationalExpressionRec1H.Cod += EscreverCodigo(addictiveExpression.Cod);
-                    relationalExpressionRec1H.Cod += EscreverCodigo(">=", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
+
+                    var lblTrue = GerarRotulo();
+                    var lblFim = GerarRotulo();
+
+                    relationalExpressionRec1H.Cod += EscreverCodigoIf(relationalExpressionRecH.Place, ">=", addictiveExpression.Place, lblTrue);
+                    relationalExpressionRec1H.Cod += EscreverCodigo(string.Empty, relationalExpressionRec1H.Place, "0", string.Empty);
+                    relationalExpressionRec1H.Cod += EscreverCodigo("goto {0}", lblFim);
+                    relationalExpressionRec1H.Cod += EscreverRotulo(lblTrue);
+                    relationalExpressionRec1H.Cod += EscreverCodigo(string.Empty, relationalExpressionRec1H.Place, "1", string.Empty);
+                    relationalExpressionRec1H.Cod += EscreverRotulo(lblFim);
+
+                    //relationalExpressionRec1H.Cod += EscreverCodigo(">=", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
                     if (RelationalExpressionRec(relationalExpressionRec1H, relationalExpressionRec1S))
                     {
                         relationalExpressionRecS.Cod = relationalExpressionRec1S.Cod;
@@ -2072,6 +2541,14 @@ namespace CCompiler.Common
         public static bool PrimaryExpression(Campo primaryExpression)
         {
             var expression = new Campo();
+            /*var characterConstant = new Campo();
+            if (CharacterConstant(characterConstant))
+            {
+                primaryExpression.Place = characterConstant.Place;
+                primaryExpression.Cod = characterConstant.Cod;
+                return true;
+            }
+            else */
             if (VerificarToken(TkConst))
             {
                 primaryExpression.Place = GerarTemp();
@@ -2101,6 +2578,42 @@ namespace CCompiler.Common
                 }
             }
             GerarExcessao(new[] { "constante", "identificador", "(" });
+            return false;
+        }
+
+        public static bool CharacterConstant(Campo characterConstant)
+        {
+            if (VerificarToken(TkAspasSimples))
+            {
+                characterConstant.Cod = "\'";
+                LerToken();
+                if (VerificarToken(TkId))
+                {
+                    characterConstant.Cod += TokenAtual;
+                    LerToken();
+                    if (VerificarToken(TkAspasSimples))
+                    {
+                        characterConstant.Cod = "\'";
+                        characterConstant.Place = GerarTemp();
+                        characterConstant.Cod = EscreverCodigo(string.Empty, characterConstant.Place, characterConstant.Cod, string.Empty);
+                        LerToken();
+                        return true;
+                    }
+                }
+                else if (VerificarToken(TkConst))
+                {
+                    characterConstant.Cod += TokenAtual;
+                    LerToken();
+                    if (VerificarToken(TkAspasSimples))
+                    {
+                        characterConstant.Cod = "\'";
+                        characterConstant.Place = GerarTemp();
+                        characterConstant.Cod = EscreverCodigo(string.Empty, characterConstant.Place, characterConstant.Cod, string.Empty);
+                        LerToken();
+                        return true;
+                    }
+                }
+            }
             return false;
         }
 

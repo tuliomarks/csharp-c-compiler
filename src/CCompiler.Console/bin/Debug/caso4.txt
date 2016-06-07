@@ -1,0 +1,13 @@
+{
+	switch(b+1){
+		case 2: 
+			a=2; 
+			break; 
+		case 3: 
+			a=3;
+			break;
+		case 4: 
+			a=4;
+			break;
+	}
+}
