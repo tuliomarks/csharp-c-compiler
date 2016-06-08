@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data.SqlTypes;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace CCompiler.Common
 {
@@ -25,7 +26,7 @@ namespace CCompiler.Common
             Pos = 0;
             Linha = 1;
             Coluna = 1;
-            EscopoGlobal = new Escopo();
+            EscopoGlobal = new Escopo(null);
             EscopoAtual = EscopoGlobal;
             TokensAguardados = new List<string>();
             Exceptions = new List<Exception>();
@@ -37,7 +38,7 @@ namespace CCompiler.Common
 
         #region Lexico
 
-        private static readonly List<string> Reservadas = new List<string>() { "int", "float", "char", "struct", "while", "break", "continue", "short", "double", "long", "do", "if", "else", "void", "for", "switch", "case", "default" };
+        private static readonly List<string> Reservadas = new List<string>() { "int", "float", "char", "struct", "while", "break", "continue", "short", "double", "long", "do", "if", "else", "void", "for", "switch", "case", "default", "return" };
         private const int TkInt = 0;
         private const int TkFloat = 1;
         private const int TkChar = 2;
@@ -56,6 +57,7 @@ namespace CCompiler.Common
         private const int TkSwitch = 15;
         private const int TkCase = 16;
         private const int TkDefault = 17;
+        private const int TkReturn = 18;
 
         private const int TkConst = 100;
         private const int TkVirgula = 101;
@@ -537,28 +539,29 @@ namespace CCompiler.Common
             // corrige o comando
             if (!format.EndsWith("\n")) format += "\n";
 
-            return string.Format(format, args);
+            return string.Format("\t"+format, args);
         }
+
         public static string EscreverCodigo(string comando, string atribuido, string op1, string op2)
         {
-            return string.Format("{0} := {1} {2} {3}\n", atribuido, op1, comando, op2);
+            return string.Format("\t{0} := {1} {2} {3}\n", atribuido, op1, comando, op2);
         }
 
         public static string EscreverCodigoIf(string op1, string operador, string op2, string label)
         {
-            return string.Format("if {0}{1}{2} goto {3}\n", op1, operador, op2, label);
+            return string.Format("\tif {0}{1}{2} goto {3}\n", op1, operador, op2, label);
         }
 
         public static string EscreverCodigoIf(string expressao, string gotoLabel)
         {
-            return string.Format("if {0}=1 goto {1}\n", expressao, gotoLabel);
+            return string.Format("\tif {0}=1 goto {1}\n", expressao, gotoLabel);
         }
 
         public static string EscreverCodigoIfZ(string expressao, string gotoLabel)
         {
-            return string.Format("if {0}=0 goto {1}\n", expressao, gotoLabel);
+            return string.Format("\tif {0}=0 goto {1}\n", expressao, gotoLabel);
         }
-
+        
         private static bool VerificarToken(int token)
         {
             return token == IdTokenAtual;
@@ -571,24 +574,51 @@ namespace CCompiler.Common
                     ColunaTokenAtual, esperava.Aggregate((a, b) => a + ", " + b), TokenAtual)));
         }
 
-        private static void GerarExcessaoTipoDup(string[] esperava)
+        private static void GerarExcessaoTipoDup(string nome)
         {
             Exceptions.Add(
-                new Exception(string.Format("({0},{1}) Esperava {2} e encontrou \"{3}\"", LinhaTokenAtual,
-                    ColunaTokenAtual, esperava.Aggregate((a, b) => a + ", " + b), TokenAtual)));
+                new Exception(string.Format("({0},{1}) O identificador \"{2}\" já esta declarada.", LinhaTokenAtual,
+                    ColunaTokenAtual, nome)));
+        }
+
+        private static void GerarExcessaoVarNaoDecl(string nome)
+        {
+            Exceptions.Add(
+                new Exception(string.Format("({0},{1}) O identificador \"{2}\" não esta declarada.", LinhaTokenAtual,
+                    ColunaTokenAtual, nome)));
         }
 
         #endregion
 
+        private static bool VerificarVariavelTab(string nome)
+        {
+            if (!VerificarVariavelTab(nome, EscopoAtual))
+            {
+                GerarExcessaoVarNaoDecl(nome);
+                return false;
+            }
+            return true;
+        }
+
+        private static bool VerificarVariavelTab(string nome, Escopo referencia)
+        {
+            if (referencia.Variaveis.Any(x => x.Id == nome))
+                return true;
+            
+            if (referencia.Ref == null) return false;
+            
+            return VerificarVariavelTab(nome, referencia.Ref);
+        }
+
         private static bool AdicionarVariavelTab(string nome, string tipo, Escopo referencia = null)
         {
-            if (EscopoGlobal.Variaveis.Any(x => x.Id == nome))
+            if (VerificarVariavelTab(nome, EscopoAtual))
             {
-                GerarExcessao(new[]{"id único"});
+                GerarExcessaoTipoDup(nome);
                 return false;
             }
 
-            EscopoGlobal.Variaveis.Add(new Variavel(){Id = nome, Ref = referencia, Tipo = tipo});
+            EscopoGlobal.Variaveis.Add(new Variavel() { Id = nome, Ref = referencia, Tipo = tipo });
             return true;
         }
 
@@ -609,16 +639,19 @@ namespace CCompiler.Common
         }
 
         // ----------------------------------------------------
-        // Declaration -> TypeSpecifier DeclaratorList;
-        // DeclaratorList -> InitDeclarator DeclaratorListRec
-        // DeclaratorListRec -> , InitDeclarator DeclaratorListRec
+        // ExternalDeclaration -> Declaration ExternalDeclaration
+
+        // Declaration -> TypeSpecifier Declarator (ParametersList) CompoundStatement
+        // Declaration -> TypeSpecifier Declarator InitDeclarator DeclaratorListRec;
+
+        // DeclaratorListRec -> , Declarator InitDeclarator DeclaratorListRec
         // DeclaratorListRec -> <vazio>
 
-        // InitDeclarator -> Declarator = AssignmentExpression
-        // InitDeclarator -> Declarator
+        // InitDeclarator -> = AssignmentExpression
+        // InitDeclarator -> <vazio>
 
         // Declarator -> id 
-        // Declarator -> ( Expression )
+        // ######## Declarator -> ( Expression ) // retirar
 
         // TypeSpecifier -> void
         // TypeSpecifier -> char // nao implementado
@@ -630,30 +663,84 @@ namespace CCompiler.Common
         // TypeSpecifier -> float
         // TypeSpecifier -> double
 
-        // ParametersList -> TypeSpecifier InitDeclarator ParametersListRec
+        // ParametersList -> TypeSpecifier Declarator InitDeclarator ParametersListRec
         // ParametersList -> <vazio>
-        // ParametersListRec -> , TypeSpecifier InitDeclarator ParametersListRec
+        // ParametersListRec -> , TypeSpecifier Declarator InitDeclarator ParametersListRec
         // ParametersListRec -> <vazio>
 
-        // FunctionDefinition -> TypeSpecifier Declarator (ParametersList) CompoundStatement
+        public static bool ExternalDeclaration(Campo externalDeclaration)
+        {
+            var externalDeclaration1 = new Campo();
+            var declaration = new Campo();
+            if (Declaration(declaration))
+            {
+                externalDeclaration.Cod += EscreverCodigo(declaration.Cod);
+                if (ExternalDeclaration(externalDeclaration1))
+                {
+                    externalDeclaration.Cod += EscreverCodigo(externalDeclaration1.Cod);
+                    return true;
+                }                
+            }
+            if (Exceptions.Count > 0) return false;
 
-        // ExternalDeclaration -> FunctionDefinition ExternalDeclaration
-        // ExternalDeclaration -> Declaration ExternalDeclaration
+            return true;
+        }
 
         public static bool Declaration(Campo declaration)
         {
             var typeSpecifier = new Campo();
-            var declaratorList = new Campo();
+            var declarator = new Campo();
+            var initDeclarator = new Campo();
+            var declaratorListRecH = new Campo();
+            var declaratorListRecS = new Campo();
+            var parametersList = new Campo();
+            var compoundStatement = new Campo();
+
             if (TypeSpecifier(typeSpecifier))
             {
-                declaratorList.Tipo = typeSpecifier.Tipo;
-                if (DeclaratorList(declaratorList))
+                declarator.Tipo = typeSpecifier.Tipo;
+                if (Declarator(declarator))
                 {
-                    if (VerificarToken(TkPontoVirgula))
+                    initDeclarator.Place = declarator.Place;
+                    if (VerificarToken(TkAbreParentese))
                     {
+                        // se achou funcao é porque é um novo escopo a partir dai
+                        var scp = new Escopo(EscopoAtual);
+                        EscopoAtual = scp;
+
                         LerToken();
-                        declaration.Cod = declaratorList.Cod;
-                        return true;
+                        if (ParametersList(parametersList))
+                        {
+                            if (VerificarToken(TkFechaParentese))
+                            {
+                                LerToken();
+                                if (CompoundStatement(compoundStatement))
+                                {
+                                    declaration.Cod += "\n";
+                                    declaration.Cod += EscreverRotulo(declarator.Place);
+                                    declaration.Cod += EscreverCodigo(declarator.Cod);
+                                    declaration.Cod += EscreverCodigo(parametersList.Cod);
+                                    declaration.Cod += EscreverCodigo(compoundStatement.Cod);
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
+                    }
+                    else if (InitDeclarator(initDeclarator))
+                    {
+                        declaratorListRecH.Tipo = typeSpecifier.Tipo;
+                        if (DeclaratorListRec(declaratorListRecH, declaratorListRecS))
+                        {
+                            if (VerificarToken(TkPontoVirgula))
+                            {
+                                LerToken();
+                                declaration.Cod += EscreverCodigo(declarator.Cod);
+                                declaration.Cod += EscreverCodigo(initDeclarator.Cod);
+                                declaration.Cod += EscreverCodigo(declaratorListRecS.Cod);
+                                return true;
+                            }
+                        }
                     }
                 }
             }
@@ -722,43 +809,30 @@ namespace CCompiler.Common
             return false;
         }
 
-        public static bool DeclaratorList(Campo declaratorList)
-        {
-            var initDeclarator = new Campo();
-            var declaratorListRecH = new Campo();
-            var declaratorListRecS = new Campo();
-            initDeclarator.Tipo = declaratorList.Tipo;
-            if (InitDeclarator(initDeclarator))
-            {
-                declaratorListRecH.Tipo = declaratorList.Tipo;
-                declaratorListRecH.Cod = initDeclarator.Cod;
-                if (DeclaratorListRec(declaratorListRecH, declaratorListRecS))
-                {
-                    declaratorList.Cod = declaratorListRecS.Cod;
-                    return true;
-                }
-            }
-            return false;
-        }
-
         public static bool DeclaratorListRec(Campo declaratorListRecH, Campo declaratorListRecS)
         {
             var initDeclarator = new Campo();
+            var declarator = new Campo();
             var declaratorListRec1H = new Campo();
             var declaratorListRec1S = new Campo();
             if (VerificarToken(TkVirgula))
             {
                 LerToken();
-                initDeclarator.Tipo = declaratorListRecH.Tipo;
-                if (InitDeclarator(initDeclarator))
+                declarator.Tipo = declaratorListRecH.Tipo;
+                if (Declarator(declarator))
                 {
-                    declaratorListRec1H.Tipo = declaratorListRecH.Tipo;
-                    declaratorListRec1H.Cod += EscreverCodigo(initDeclarator.Cod);
-                    declaratorListRec1H.Cod += EscreverCodigo(declaratorListRecH.Cod);
-                    if (DeclaratorListRec(declaratorListRec1H, declaratorListRec1S))
+                    initDeclarator.Place = declarator.Place;
+                    initDeclarator.Tipo = declaratorListRecH.Tipo;
+                    if (InitDeclarator(initDeclarator))
                     {
-                        declaratorListRecS.Cod = declaratorListRec1S.Cod;
-                        return true;
+                        declaratorListRec1H.Tipo = declaratorListRecH.Tipo;
+                        declaratorListRec1H.Cod += EscreverCodigo(initDeclarator.Cod);
+                        declaratorListRec1H.Cod += EscreverCodigo(declaratorListRecH.Cod);
+                        if (DeclaratorListRec(declaratorListRec1H, declaratorListRec1S))
+                        {
+                            declaratorListRecS.Cod = declaratorListRec1S.Cod;
+                            return true;
+                        }
                     }
                 }
             }
@@ -772,74 +846,60 @@ namespace CCompiler.Common
 
         public static bool InitDeclarator(Campo initDeclarator)
         {
-            var declarator = new Campo();
             var assignmentExpression = new Campo();
-            declarator.Tipo = initDeclarator.Tipo;
-            if (Declarator(declarator))
+            if (VerificarToken(TkAssignment))
             {
-                if (VerificarToken(TkAssignment))
+                LerToken();
+                if (AssignmentExpression(assignmentExpression))
                 {
-                    LerToken();
-                    if (AssignmentExpression(assignmentExpression))
-                    {
-                        initDeclarator.Cod += EscreverCodigo(declarator.Cod);
-                        initDeclarator.Cod += EscreverCodigo(assignmentExpression.Cod);
-                        initDeclarator.Cod += EscreverCodigo(string.Empty, declarator.Place, assignmentExpression.Place, string.Empty);
-                        return true;
-                    }
+                    initDeclarator.Cod += EscreverCodigo(assignmentExpression.Cod);
+                    initDeclarator.Cod += EscreverCodigo(string.Empty, initDeclarator.Place, assignmentExpression.Place, string.Empty);
+                    return true;
                 }
-                return true;
+                return false;
             }
-            return false;
+            return true;
         }
 
         public static bool Declarator(Campo declarator)
         {
-            var expression = new Campo();
             if (VerificarToken(TkId))
             {
+                declarator.Place = TokenAtual;
                 if (!AdicionarVariavelTab(declarator.Place, declarator.Tipo)) return false;
 
-                declarator.Place = TokenAtual;
                 LerToken();
                 return true;
             }
-            else if (VerificarToken(TkAbreParentese))
-            {
-                LerToken();
-                if (Expression(expression))
-                {
-                    if (IdTokenAtual == TkFechaParentese)
-                    {
-                        LerToken();
-                        declarator.Cod = expression.Cod;
-                        declarator.Place = expression.Place;
-                        return true;
-                    }
-                    GerarExcessao(new[] { ")" });
-                }
-            }
-            GerarExcessao(new[] { "identificador", "(" });
+            GerarExcessao(new[] { "identificador" });
             return false;
         }
 
         public static bool ParametersList(Campo parametersList)
         {
             var typeSpecifier = new Campo();
-            var initDeclaratorList = new Campo();
+            var declarator = new Campo();
+            var initDeclarator = new Campo();
             var parametersListRec = new Campo();
             if (TypeSpecifier(typeSpecifier))
             {
-                initDeclaratorList.Tipo = typeSpecifier.Tipo;
-                if (InitDeclarator(initDeclaratorList))
+                declarator.Tipo = typeSpecifier.Tipo;
+                if (Declarator(declarator))
                 {
-                    if (ParametersListRec(parametersListRec))
+                    initDeclarator.Place = declarator.Place;
+                    initDeclarator.Tipo = typeSpecifier.Tipo;
+                    if (InitDeclarator(initDeclarator))
                     {
-                        parametersList.Cod = initDeclaratorList.Cod;
-                        parametersList.Cod += EscreverCodigo(parametersListRec.Cod);
-                        return true;
+                        if (ParametersListRec(parametersListRec))
+                        {
+                            parametersList.Cod = initDeclarator.Cod;
+                            parametersList.Cod += EscreverCodigo("pop {0}", declarator.Place);
+                            parametersList.Cod += EscreverCodigo(parametersListRec.Cod);
+                            return true;
+                        }
                     }
                 }
+                return false;
             }
             return true;
         }
@@ -847,93 +907,36 @@ namespace CCompiler.Common
         public static bool ParametersListRec(Campo parametersListRec)
         {
             var typeSpecifier = new Campo();
-            var initDeclaratorList = new Campo();
+            var initDeclarator = new Campo();
+            var declarator = new Campo();
             var parametersListRec1 = new Campo();
             if (VerificarToken(TkVirgula))
             {
                 LerToken();
                 if (TypeSpecifier(typeSpecifier))
                 {
-                    initDeclaratorList.Tipo = typeSpecifier.Tipo;
-                    if (InitDeclarator(initDeclaratorList))
+                    declarator.Tipo = typeSpecifier.Tipo;
+                    if (Declarator(declarator))
                     {
-                        if (ParametersListRec(parametersListRec1))
+                        initDeclarator.Place = declarator.Place;
+                        initDeclarator.Tipo = typeSpecifier.Tipo;
+                        if (InitDeclarator(initDeclarator))
                         {
-                            parametersListRec.Cod = initDeclaratorList.Cod;
-                            parametersListRec.Cod += EscreverCodigo(parametersListRec1.Cod);
-                            return true;
-                        }
-                    }
-                }
-            }
-            return true;
-        }
-
-        public static bool FunctionDefinition(Campo functionDefinition)
-        {
-            var typeSpecifier = new Campo();
-            var declarator = new Campo();
-            var parametersList = new Campo();
-            var compoundStatement = new Campo();
-            if (TypeSpecifier(typeSpecifier))
-            {
-                if (Declarator(declarator))
-                {
-                    var scp = new Escopo();
-                    if (!AdicionarVariavelTab(declarator.Place, "proc", scp)) return false;
-                    EscopoAtual = scp;
-
-                    if (VerificarToken(TkAbreParentese))
-                    {
-                        LerToken();
-                        if (ParametersList(parametersList))
-                        {
-                            if (VerificarToken(TkFechaParentese))
+                            if (ParametersListRec(parametersListRec1))
                             {
-                                LerToken();
-                                if (CompoundStatement(compoundStatement))
-                                {
-                                    functionDefinition.Cod += EscreverRotulo(declarator.Place);
-                                    functionDefinition.Cod += EscreverCodigo(declarator.Cod);
-                                    functionDefinition.Cod += EscreverCodigo(parametersList.Cod);
-                                    functionDefinition.Cod += EscreverCodigo(compoundStatement.Cod);
-                                    return true;
-                                }
+                                parametersListRec.Cod = initDeclarator.Cod;
+                                parametersListRec.Cod += EscreverCodigo("pop {0}", declarator.Place);
+                                parametersListRec.Cod += EscreverCodigo(parametersListRec1.Cod);
+                                return true;
                             }
                         }
                     }
                 }
+                return false;
             }
-            return false;
+            return true;
         }
-
-        public static bool ExternalDeclaration(Campo externalDeclaration)
-        {
-            var functionDefinition = new Campo();
-            var externalDeclaration1 = new Campo();
-            var declaration = new Campo();
-            if (Declaration(declaration))
-            {
-                externalDeclaration.Cod += EscreverCodigo(declaration.Cod);
-                if (ExternalDeclaration(externalDeclaration1))
-                {
-                    externalDeclaration.Cod += EscreverCodigo(externalDeclaration1.Cod);
-                }
-                return true;
-            }
-            else 
-            if (FunctionDefinition(functionDefinition))
-            {
-                externalDeclaration.Cod += EscreverCodigo(functionDefinition.Cod);
-                if (ExternalDeclaration(externalDeclaration1))
-                {
-                    externalDeclaration.Cod += EscreverCodigo(externalDeclaration1.Cod);
-                }
-                return true;
-            }
-
-            return false;
-        }
+       
 
         // ----------------------------------------------------
         // Statement -> CompoundStatement | ExpressionStatement | SelectionStatement | IterationStatement | JumpStatement
@@ -957,6 +960,8 @@ namespace CCompiler.Common
 
         // JumpStatement -> break;
         // JumpStatement -> continue;
+        // JumpStatement -> return Expression;
+        // JumpStatement -> return;
 
         // CompoundStatement -> { BlockItemList } 
         // CompoundStatement -> <vazio>        
@@ -1025,188 +1030,7 @@ namespace CCompiler.Common
         // PrimaryExpression -> cte
         // PrimaryExpression -> (Expression)
 
-        // ----------------------------------------------------
-
-        /*public static bool Statement(Campo statement)
-        {
-            var c = new Campo();
-            var e = new Campo();
-            var listacmd = new Campo();
-            var cmd1 = new Campo();
-            var cmd2 = new Campo();
-
-            #region if
-            if (IdTokenAtual == TkIf)
-            {
-                LerToken();
-                if (IdTokenAtual == TkAbreParentese)
-                {
-                    LerToken();
-                    if (C(c))
-                    {
-                        if (IdTokenAtual == TkFechaParentese)
-                        {
-                            LerToken();
-
-                            cmd1.Rotulo1 = GerarRotulo();
-                            cmd1.Rotulo2 = GerarRotulo();
-                            if (Statement(cmd1))
-                            {
-                                if (IdTokenAtual == TkElse)
-                                {
-                                    LerToken();
-
-                                    if (Statement(cmd2))
-                                    {
-                                        statement.Cod += EscreverCodigo(c.Cod);
-                                        statement.Cod += EscreverCodigoIfZ(c.Place, cmd1.Rotulo1); // goto else                                    
-                                        statement.Cod += EscreverCodigo(cmd1.Cod);
-                                        statement.Cod += EscreverCodigo("goto {0}", cmd1.Rotulo2);
-                                        statement.Cod += EscreverRotulo(cmd1.Rotulo1);
-                                        statement.Cod += EscreverCodigo(cmd2.Cod);
-                                        statement.Cod += EscreverRotulo(cmd1.Rotulo2);
-                                        return true;
-                                    }
-                                }
-                                else
-                                {
-                                    statement.Cod += EscreverCodigo(c.Cod);
-                                    statement.Cod += EscreverCodigoIfZ(c.Place, cmd1.Rotulo1); // goto else                                    
-                                    statement.Cod += EscreverCodigo(cmd1.Cod);
-                                    statement.Cod += EscreverRotulo(cmd1.Rotulo1);
-                                    return true;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            #endregion
-            #region do while
-            else if (IdTokenAtual == TkDo)
-            {
-                LerToken();
-                cmd1.Rotulo1 = GerarRotulo();
-                cmd1.Rotulo2 = GerarRotulo();
-                if (Statement(cmd1))
-                {
-                    if (IdTokenAtual == TkWhile)
-                    {
-                        LerToken();
-                        if (IdTokenAtual == TkAbreParentese)
-                        {
-                            LerToken();
-                            if (C(c))
-                            {
-                                if (IdTokenAtual == TkFechaParentese)
-                                {
-                                    LerToken();
-                                    statement.Cod += EscreverRotulo(cmd1.Rotulo1);
-                                    statement.Cod += EscreverCodigo(cmd1.Cod);
-                                    statement.Cod += EscreverCodigo(c.Cod);
-                                    statement.Cod += EscreverCodigoIf(c.Place, cmd1.Rotulo1);
-                                    statement.Cod += EscreverCodigo("goto {0}", cmd1.Rotulo2);
-                                    statement.Cod += EscreverRotulo(cmd1.Rotulo2);
-                                    return true;
-                                }
-                            }
-                        }
-                    }
-
-                }
-            }
-            #endregion
-            #region while
-            else if (IdTokenAtual == TkWhile)
-            {
-                LerToken();
-                if (IdTokenAtual == TkAbreParentese)
-                {
-                    LerToken();
-                    if (C(c))
-                    {
-                        if (IdTokenAtual == TkFechaParentese)
-                        {
-                            LerToken();
-
-                            cmd1.Rotulo1 = GerarRotulo();
-                            cmd1.Rotulo2 = GerarRotulo();
-                            if (Statement(cmd1))
-                            {
-                                statement.Cod += EscreverRotulo(cmd1.Rotulo1);
-                                statement.Cod += EscreverCodigo(c.Cod);
-                                statement.Cod += EscreverCodigoIfZ(c.Place, cmd1.Rotulo2);
-                                statement.Cod += EscreverCodigo(cmd1.Cod);
-                                statement.Cod += EscreverCodigo("goto {0}", cmd1.Rotulo1);
-                                statement.Cod += EscreverRotulo(cmd1.Rotulo2);
-                                return true;
-                            }
-                        }
-
-                    }
-
-                }
-            }
-            #endregion
-            #region break
-            else if (IdTokenAtual == TkBreak)
-            {
-                if (string.IsNullOrEmpty(statement.Rotulo2))
-                    return false;
-
-                statement.Cod += EscreverCodigo("goto {0}", statement.Rotulo2);
-                LerToken();
-                return true;
-
-            }
-            #endregion
-            #region continue
-            else if (IdTokenAtual == TkContinue)
-            {
-                if (string.IsNullOrEmpty(statement.Rotulo1))
-                    return false;
-
-                statement.Cod += EscreverCodigo("goto {0}", statement.Rotulo1);
-                LerToken();
-                return true;
-
-            }
-            #endregion
-            else if (IdTokenAtual == TkId)
-            {
-                statement.Place = TokenAtual;
-                LerToken();
-                if (IdTokenAtual == TkAssignment)
-                {
-                    LerToken();
-                    if (E(e))
-                    {
-                        statement.Cod += EscreverCodigo(e.Cod);
-                        statement.Cod += EscreverCodigo(string.Empty, statement.Place, e.Place, string.Empty);
-                        return true;
-                    }
-                }
-            }
-            else if (IdTokenAtual == TkAbreChaves)
-            {
-                LerToken();
-
-                // propaga os labels 
-                listacmd.Rotulo2 = statement.Rotulo2;
-                listacmd.Rotulo1 = statement.Rotulo1;
-                if (ListaCmd(listacmd))
-                {
-                    if (IdTokenAtual == TkFechaChaves)
-                    {
-                        LerToken();
-                        statement.Cod = listacmd.Cod;
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
-        */
+        // ----------------------------------------------------       
         public static bool Statement(Campo statement)
         {
             var compoundStatement = new Campo();
@@ -1648,6 +1472,8 @@ namespace CCompiler.Common
 
             if (VerificarToken(TkId))
             {
+                if (!VerificarVariavelTab(TokenAtual)) return false;
+
                 LerToken();
                 if (VerificarToken(TkDoisPontos))
                 {
@@ -1712,6 +1538,18 @@ namespace CCompiler.Common
                 return true;
 
             }
+            else if (VerificarToken(TkReturn))
+            {
+                LerToken();
+                var expression = new Campo();
+                if (Expression(expression))
+                {
+                    jumpStatement.Cod = expression.Cod;
+                    jumpStatement.Cod += EscreverCodigo("push {0}", expression.Place);
+                }
+                jumpStatement.Cod += EscreverCodigo("goto {0}","BP" ); // aqui vai implementacao do BP
+                return true;
+            }
             return false;
         }
 
@@ -1732,7 +1570,6 @@ namespace CCompiler.Common
                 LerToken();
                 return true;
             }
-            GerarExcessao(new[] { ";", "expressão" });
             return false;
         }
 
@@ -2558,6 +2395,7 @@ namespace CCompiler.Common
             }
             else if (VerificarToken(TkId))
             {
+                if (!VerificarVariavelTab(TokenAtual)) return false;
                 primaryExpression.Place = TokenAtual;
                 LerToken();
                 return true;
@@ -2574,10 +2412,9 @@ namespace CCompiler.Common
                         primaryExpression.Place = expression.Place;
                         return true;
                     }
-                    GerarExcessao(new[] { ")" });
+                    return false;
                 }
             }
-            GerarExcessao(new[] { "constante", "identificador", "(" });
             return false;
         }
 

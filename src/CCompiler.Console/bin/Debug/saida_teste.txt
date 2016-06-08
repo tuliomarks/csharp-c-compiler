@@ -1,0 +1,16 @@
+	T1 := 1  
+	a := T1  
+	T2 := 2  
+	b := T2  
+	T3 := 1  
+	c := T3  
+
+main: 
+	T4 := 1  
+	args := T4  
+	pop args
+	T5 := 2  
+	accc := T5  
+	pop accc
+	a := a + args
+	goto BP

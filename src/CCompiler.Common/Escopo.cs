@@ -9,9 +9,11 @@ namespace CCompiler.Common
     public class Escopo
     {
         public List<Variavel> Variaveis { get; set; }
+        public Escopo Ref { get; set; }
 
-        public Escopo()
+        public Escopo(Escopo referencia)
         {
+            Ref = referencia;
             Variaveis = new List<Variavel>();
         }
     }

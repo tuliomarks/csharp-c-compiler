@@ -15,6 +15,5 @@
 
         public string RotuloDefault { get; set; }
         public string CodTestesSwitch { get; set; }
-
     }
 }

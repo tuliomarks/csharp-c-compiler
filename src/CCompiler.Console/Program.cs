@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using CCompiler.Common;
@@ -11,7 +12,7 @@ namespace AvalExpressoes
     {
         static void Main(string[] args)
         {
-            string comando = string.Empty;           
+            string comando = string.Empty;
 
             while (comando != "E")
             {
@@ -42,12 +43,11 @@ namespace AvalExpressoes
                         else
                         {
                             Console.WriteLine("==== Sintaxe incorreta em ({0}, {1}) {2}", AvaliadorExpressoes.LinhaTokenAtual, AvaliadorExpressoes.ColunaTokenAtual, AvaliadorExpressoes.TokenAtual);
-                            foreach (var exception in AvaliadorExpressoes.Exceptions)
-                            {
-                                Console.WriteLine(exception.Message);
-                            }
+                            if (AvaliadorExpressoes.Exceptions.Any())
+                                Console.WriteLine(AvaliadorExpressoes.Exceptions.First().Message);
+
                         }
-                            
+
                     }
                     catch (Exception ex)
                     {

@@ -1,1 +1,8 @@
-	int a = 1, a=2;
+ int a = 1, b=2;
+ int c = 1;
+ 
+ int main(int args = 1, long accc = 2){
+	a += args;	
+	return;
+ }
+ 
