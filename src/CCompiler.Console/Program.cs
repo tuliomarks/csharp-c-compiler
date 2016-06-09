@@ -31,10 +31,10 @@ namespace AvalExpressoes
                     }
 
                     Console.WriteLine("");
-                    AvaliadorExpressoes.Inicializar(string.Format("{0}\0", conteudo));
+                    GeradorC3E.Inicializar(string.Format("{0}\0", conteudo));
                     try
                     {
-                        if (AvaliadorExpressoes.ExternalDeclaration(e))
+                        if (GeradorC3E.ExternalDeclaration(e))
                         {
                             Console.WriteLine("==== Resultado Comandos C3E: \n{0}", e.Cod);
                             File.WriteAllText("saida_" + exp, e.Cod);
@@ -42,9 +42,9 @@ namespace AvalExpressoes
 
                         else
                         {
-                            Console.WriteLine("==== Sintaxe incorreta em ({0}, {1}) {2}", AvaliadorExpressoes.LinhaTokenAtual, AvaliadorExpressoes.ColunaTokenAtual, AvaliadorExpressoes.TokenAtual);
-                            if (AvaliadorExpressoes.Exceptions.Any())
-                                Console.WriteLine(AvaliadorExpressoes.Exceptions.First().Message);
+                            Console.WriteLine("==== Sintaxe incorreta em ({0}, {1}) {2}", GeradorC3E.LinhaTokenAtual, GeradorC3E.ColunaTokenAtual, GeradorC3E.TokenAtual);
+                            if (GeradorC3E.Exceptions.Any())
+                                Console.WriteLine(GeradorC3E.Exceptions.First().Message);
 
                         }
 

@@ -1,16 +1,17 @@
-	T1 := 1  
-	a := T1  
-	T2 := 2  
-	b := T2  
-	T3 := 1  
-	c := T3  
+
+teste: 
+	pop a
+
 
 main: 
-	T4 := 1  
-	args := T4  
+	T1 := 1  
+	args := T1  
 	pop args
-	T5 := 2  
-	accc := T5  
+	T2 := 2  
+	accc := T2  
 	pop accc
-	a := a + args
+	T3 := 1  
+	push T3
+	call teste
 	goto BP
+

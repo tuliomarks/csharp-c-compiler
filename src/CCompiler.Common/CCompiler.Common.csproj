@@ -39,7 +39,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AvaliadorExpressoes.cs" />
+    <Compile Include="GeradorC3E.cs" />
     <Compile Include="Campo.cs" />
     <Compile Include="Escopo.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

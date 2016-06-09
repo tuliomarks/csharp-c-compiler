@@ -7,7 +7,7 @@ using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace CCompiler.Common
 {
-    public static class AvaliadorExpressoes
+    public static class GeradorC3E
     {
 
         public static int IdTokenAtual { get; set; }
@@ -539,7 +539,7 @@ namespace CCompiler.Common
             // corrige o comando
             if (!format.EndsWith("\n")) format += "\n";
 
-            return string.Format("\t"+format, args);
+            return string.Format("\t" + format, args);
         }
 
         public static string EscreverCodigo(string comando, string atribuido, string op1, string op2)
@@ -561,7 +561,7 @@ namespace CCompiler.Common
         {
             return string.Format("\tif {0}=0 goto {1}\n", expressao, gotoLabel);
         }
-        
+
         private static bool VerificarToken(int token)
         {
             return token == IdTokenAtual;
@@ -572,6 +572,13 @@ namespace CCompiler.Common
             Exceptions.Add(
                 new Exception(string.Format("({0},{1}) Esperava {2} e encontrou \"{3}\"", LinhaTokenAtual,
                     ColunaTokenAtual, esperava.Aggregate((a, b) => a + ", " + b), TokenAtual)));
+        }
+
+        private static void GerarExcessaoParams(string proc)
+        {
+            Exceptions.Add(
+                new Exception(string.Format("({0},{1}) Quantidade de parametos incorretos para o procedimento {2}", LinhaTokenAtual,
+                    ColunaTokenAtual, proc)));
         }
 
         private static void GerarExcessaoTipoDup(string nome)
@@ -604,21 +611,31 @@ namespace CCompiler.Common
         {
             if (referencia.Variaveis.Any(x => x.Id == nome))
                 return true;
-            
+
             if (referencia.Ref == null) return false;
-            
+
             return VerificarVariavelTab(nome, referencia.Ref);
+        }
+
+        private static Variavel BuscarVariavelTab(string nome, Escopo referencia)
+        {
+            if (referencia.Variaveis.Any(x => x.Id == nome))
+                return referencia.Variaveis.First(x => x.Id == nome);
+
+            if (referencia.Ref == null) return null;
+
+            return BuscarVariavelTab(nome, referencia.Ref);
         }
 
         private static bool AdicionarVariavelTab(string nome, string tipo, Escopo referencia = null)
         {
-            if (VerificarVariavelTab(nome, EscopoAtual))
+            if (EscopoAtual.Variaveis.Any(x => x.Id == nome))
             {
                 GerarExcessaoTipoDup(nome);
                 return false;
             }
 
-            EscopoGlobal.Variaveis.Add(new Variavel() { Id = nome, Ref = referencia, Tipo = tipo });
+            EscopoAtual.Variaveis.Add(new Variavel() { Id = nome, Ref = referencia, Tipo = tipo });
             return true;
         }
 
@@ -679,7 +696,7 @@ namespace CCompiler.Common
                 {
                     externalDeclaration.Cod += EscreverCodigo(externalDeclaration1.Cod);
                     return true;
-                }                
+                }
             }
             if (Exceptions.Count > 0) return false;
 
@@ -694,7 +711,7 @@ namespace CCompiler.Common
             var declaratorListRecH = new Campo();
             var declaratorListRecS = new Campo();
             var parametersList = new Campo();
-            var compoundStatement = new Campo();
+            var functionStatement = new Campo();
 
             if (TypeSpecifier(typeSpecifier))
             {
@@ -708,26 +725,45 @@ namespace CCompiler.Common
                         var scp = new Escopo(EscopoAtual);
                         EscopoAtual = scp;
 
-                        LerToken();
-                        if (ParametersList(parametersList))
+                        try
                         {
-                            if (VerificarToken(TkFechaParentese))
+                            LerToken();
+                            if (ParametersList(parametersList))
                             {
-                                LerToken();
-                                if (CompoundStatement(compoundStatement))
+                                var proc = BuscarVariavelTab(declarator.Place, EscopoAtual);
+                                if (typeSpecifier.Tipo != "void")
+                                    proc.Return = new Variavel() { Tipo = typeSpecifier.Tipo };
+
+                                proc.Params.AddRange(EscopoAtual.Variaveis); // adiciona todas as variaveis do escopo
+
+                                if (VerificarToken(TkFechaParentese))
                                 {
-                                    declaration.Cod += "\n";
-                                    declaration.Cod += EscreverRotulo(declarator.Place);
-                                    declaration.Cod += EscreverCodigo(declarator.Cod);
-                                    declaration.Cod += EscreverCodigo(parametersList.Cod);
-                                    declaration.Cod += EscreverCodigo(compoundStatement.Cod);
-                                    return true;
+                                    LerToken();
+                                    if (FunctionStatement(functionStatement))
+                                    {
+                                        declaration.Cod += "\n";
+                                        declaration.Cod += EscreverRotulo(declarator.Place);
+                                        declaration.Cod += EscreverCodigo(declarator.Cod);
+                                        declaration.Cod += EscreverCodigo(parametersList.Cod);
+                                        declaration.Cod += EscreverCodigo(functionStatement.Cod);
+                                        declaration.Cod += "\n";
+                                        return true;
+                                    }
                                 }
                             }
                         }
+                        catch (Exception)
+                        {
+
+                            throw;
+                        }
+                        finally // no finally faz voltar o escopo
+                        {
+                            EscopoAtual = EscopoAtual.Ref;
+                        }
                         return false;
                     }
-                    else if (InitDeclarator(initDeclarator))
+                    else if (InitDeclarator(initDeclarator)) // aqui eh declaração de variavel
                     {
                         declaratorListRecH.Tipo = typeSpecifier.Tipo;
                         if (DeclaratorListRec(declaratorListRecH, declaratorListRecS))
@@ -936,7 +972,6 @@ namespace CCompiler.Common
             }
             return true;
         }
-       
 
         // ----------------------------------------------------
         // Statement -> CompoundStatement | ExpressionStatement | SelectionStatement | IterationStatement | JumpStatement
@@ -962,6 +997,9 @@ namespace CCompiler.Common
         // JumpStatement -> continue;
         // JumpStatement -> return Expression;
         // JumpStatement -> return;
+
+        // FunctionStatement -> { BlockItemList } 
+        // FunctionStatement -> <vazio>        
 
         // CompoundStatement -> { BlockItemList } 
         // CompoundStatement -> <vazio>        
@@ -1027,8 +1065,15 @@ namespace CCompiler.Common
         // MultiplicativeExpressionRec -> <vazio>   
 
         // PrimaryExpression -> id
+        // PrimaryExpression -> id (ArgumentList)
         // PrimaryExpression -> cte
         // PrimaryExpression -> (Expression)
+
+        // ArgumentList -> AssignmentExpression ArgumentListRec
+        // ArgumentList -> <vazio>
+        // ArgumentListRec -> , AssignmentExpression ArgumentListRec
+        // ArgumentListRec -> <vazio>
+
 
         // ----------------------------------------------------       
         public static bool Statement(Campo statement)
@@ -1079,7 +1124,7 @@ namespace CCompiler.Common
             return false;
         }
 
-        public static bool CompoundStatement(Campo compoundStatement)
+        public static bool FunctionStatement(Campo functionStatement)
         {
             var blockItemList = new Campo();
 
@@ -1088,16 +1133,55 @@ namespace CCompiler.Common
                 LerToken();
 
                 // propaga os labels 
-                blockItemList.Rotulo2 = compoundStatement.Rotulo2;
-                blockItemList.Rotulo1 = compoundStatement.Rotulo1;
+                blockItemList.Rotulo2 = functionStatement.Rotulo2;
+                blockItemList.Rotulo1 = functionStatement.Rotulo1;
                 if (BlockItemList(blockItemList))
                 {
                     if (VerificarToken(TkFechaChaves))
                     {
                         LerToken();
-                        compoundStatement.Cod = blockItemList.Cod;
+                        functionStatement.Cod = blockItemList.Cod;
                         return true;
                     }
+                }
+            }
+            return false;
+        }
+
+        public static bool CompoundStatement(Campo compoundStatement)
+        {
+            var blockItemList = new Campo();
+
+            if (VerificarToken(TkAbreChaves))
+            {
+                LerToken();
+
+                var scp = new Escopo(EscopoAtual);
+                EscopoAtual = scp;
+
+                try
+                {
+                    // propaga os labels 
+                    blockItemList.Rotulo2 = compoundStatement.Rotulo2;
+                    blockItemList.Rotulo1 = compoundStatement.Rotulo1;
+                    if (BlockItemList(blockItemList))
+                    {
+                        if (VerificarToken(TkFechaChaves))
+                        {
+                            LerToken();
+                            compoundStatement.Cod = blockItemList.Cod;
+                            return true;
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+
+                    throw;
+                }
+                finally
+                {
+                    EscopoAtual = EscopoAtual.Ref;
                 }
             }
             return false;
@@ -1547,7 +1631,7 @@ namespace CCompiler.Common
                     jumpStatement.Cod = expression.Cod;
                     jumpStatement.Cod += EscreverCodigo("push {0}", expression.Place);
                 }
-                jumpStatement.Cod += EscreverCodigo("goto {0}","BP" ); // aqui vai implementacao do BP
+                jumpStatement.Cod += EscreverCodigo("goto {0}", "BP"); // aqui vai implementacao do BP
                 return true;
             }
             return false;
@@ -1569,7 +1653,7 @@ namespace CCompiler.Common
             {
                 LerToken();
                 return true;
-            }
+            }           
             return false;
         }
 
@@ -2229,7 +2313,7 @@ namespace CCompiler.Common
             var primaryExpression = new Campo();
             var multiplicativeExpressionRecH = new Campo();
             var multiplicativeExpressionRecS = new Campo();
-            if (PrimaryExpression(primaryExpression))
+            if (PostFixExpression(primaryExpression))
             {
                 multiplicativeExpressionRecH.Cod = primaryExpression.Cod;
                 multiplicativeExpressionRecH.Place = primaryExpression.Place;
@@ -2253,7 +2337,7 @@ namespace CCompiler.Common
             if (VerificarToken(TkMultiplication))
             {
                 LerToken();
-                if (PrimaryExpression(primaryExpression))
+                if (PostFixExpression(primaryExpression))
                 {
                     multiplicativeExpressionRec1H.Place = GerarTemp();
                     multiplicativeExpressionRec1H.Cod += EscreverCodigo(multiplicativeExpressionRecH.Cod);
@@ -2271,7 +2355,7 @@ namespace CCompiler.Common
             else if (VerificarToken(TkDivision))
             {
                 LerToken();
-                if (PrimaryExpression(primaryExpression))
+                if (PostFixExpression(primaryExpression))
                 {
                     multiplicativeExpressionRec1H.Place = GerarTemp();
                     multiplicativeExpressionRec1H.Cod += EscreverCodigo(multiplicativeExpressionRecH.Cod);
@@ -2289,7 +2373,7 @@ namespace CCompiler.Common
             else if (VerificarToken(TkRemainder))
             {
                 LerToken();
-                if (PrimaryExpression(primaryExpression))
+                if (PostFixExpression(primaryExpression))
                 {
                     multiplicativeExpressionRec1H.Place = GerarTemp();
                     multiplicativeExpressionRec1H.Cod += EscreverCodigo(multiplicativeExpressionRecH.Cod);
@@ -2343,37 +2427,29 @@ namespace CCompiler.Common
             return false;
         }
          */
-        /*         
         public static bool PostFixExpression(Campo postFixExpression)
         {
             var primaryExpression = new Campo();
-            var unaryExpression1 = new Campo();
             if (PrimaryExpression(primaryExpression))
             {
                 postFixExpression.Place = primaryExpression.Place;
+                postFixExpression.Cod += primaryExpression.Cod;
                 if (IdTokenAtual == TkDoublePlus)
                 {
-                    LerToken();
-                    if (UnaryExpression(unaryExpression1))
-                    {
-                        postFixExpression.Cod += unaryExpression1.Cod;
-                        return true;
-                    }
+                    LerToken();                    
+                    postFixExpression.Cod += EscreverCodigo("+", primaryExpression.Place, primaryExpression.Place, "1");
+                    return true;
                 }
                 else if (IdTokenAtual == TkDoubleMinus)
                 {
                     LerToken();
-                    if (UnaryExpression(unaryExpression1))
-                    {
-                        postFixExpression.Cod += unaryExpression1.Cod;
-                        return true;
-                    }
+                    postFixExpression.Cod += EscreverCodigo("-", primaryExpression.Place, primaryExpression.Place, "1");
+                    return true;
                 }
                 return true;
             }
             return false;
         }
-        */
 
         public static bool PrimaryExpression(Campo primaryExpression)
         {
@@ -2395,9 +2471,39 @@ namespace CCompiler.Common
             }
             else if (VerificarToken(TkId))
             {
-                if (!VerificarVariavelTab(TokenAtual)) return false;
                 primaryExpression.Place = TokenAtual;
                 LerToken();
+
+                if (VerificarToken(TkAbreParentese))
+                {
+                    LerToken();
+                    var argumentList = new Campo();
+
+                    var proc = BuscarVariavelTab(primaryExpression.Place, EscopoGlobal);
+                    argumentList.Argumentos = proc.Params;
+                    argumentList.Proc = proc.Id;
+                    if (ArgumentList(argumentList))
+                    {
+                        if (VerificarToken(TkFechaParentese))
+                        {
+                            LerToken();
+                            primaryExpression.Cod += EscreverCodigo(argumentList.Cod);
+                            primaryExpression.Cod += EscreverCodigo("call {0}", primaryExpression.Place);
+                            if (proc.Return != null)
+                            {
+                                primaryExpression.Place = GerarTemp();
+                                primaryExpression.Cod += EscreverCodigo("pop {0}", primaryExpression.Place);
+                            }
+
+
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+
+                if (!VerificarVariavelTab(primaryExpression.Place)) return false;
+
                 return true;
             }
             else if (VerificarToken(TkAbreParentese))
@@ -2416,6 +2522,79 @@ namespace CCompiler.Common
                 }
             }
             return false;
+        }
+
+        public static bool ArgumentList(Campo argumentList)
+        {
+            var assignmentExpression = new Campo();
+            var argumentListRecS = new Campo();
+            var argumentListRecH = new Campo();
+            if (AssignmentExpression(assignmentExpression))
+            {
+                if (argumentList.Argumentos.Count == 0)
+                {
+                    GerarExcessaoParams(argumentList.Proc);
+                    return false;
+                }
+
+                argumentList.Argumentos.RemoveAt(0); // consome com o primeiro argumento 
+
+                argumentListRecH.Proc = argumentList.Proc;
+                argumentListRecH.Argumentos = argumentList.Argumentos;
+                argumentListRecH.Cod = assignmentExpression.Cod;
+                argumentListRecH.Place = assignmentExpression.Place;
+                if (ArgumentListRec(argumentListRecH, argumentListRecS))
+                {
+
+                    argumentList.Place = argumentListRecS.Place;
+                    argumentList.Cod = argumentListRecS.Cod;
+                    argumentList.Cod += EscreverCodigo("push {0}", argumentList.Place);
+
+                    return true;
+                }
+                return false;
+            }
+            return true;
+        }
+
+        public static bool ArgumentListRec(Campo argumentListRecH, Campo argumentListRecS)
+        {
+            var assignmentExpression = new Campo();
+            var argumentListRec1H = new Campo();
+            var argumentListRec1S = new Campo();
+            if (VerificarToken(TkVirgula))
+            {
+                LerToken();
+                if (AssignmentExpression(assignmentExpression))
+                {
+                    if (argumentListRecH.Argumentos.Count == 0)
+                    {
+                        GerarExcessaoParams(argumentListRecH.Proc);
+                        return false;
+                    }
+
+                    argumentListRecH.Argumentos.RemoveAt(0); // consome com o primeiro argumento 
+
+                    argumentListRec1H.Cod += argumentListRecH.Cod;
+                    argumentListRec1H.Cod += assignmentExpression.Cod;
+                    if (ArgumentListRec(argumentListRec1H, argumentListRec1S))
+                    {
+                        argumentListRecS.Place = argumentListRec1S.Place;
+                        argumentListRecS.Cod = argumentListRec1S.Cod;
+                        argumentListRecS.Cod += EscreverCodigo("param {0}", argumentListRecS.Place);
+
+                        return true;
+                    }
+                    return false;
+                }
+                return false;
+            }
+            else
+            {
+                argumentListRecS.Cod = argumentListRecH.Cod;
+                argumentListRecS.Place = argumentListRecH.Place;
+                return true;
+            }
         }
 
         public static bool CharacterConstant(Campo characterConstant)
@@ -2450,384 +2629,6 @@ namespace CCompiler.Common
                         return true;
                     }
                 }
-            }
-            return false;
-        }
-
-        public static bool ListaCmd(Campo listacmd)
-        {
-            var cmd = new Campo();
-            var listacont = new Campo();
-
-            // propaga os labels 
-            cmd.Rotulo2 = listacmd.Rotulo2;
-            cmd.Rotulo1 = listacmd.Rotulo1;
-            if (Statement(cmd))
-            {
-                if (IdTokenAtual == TkPontoVirgula)
-                {
-                    LerToken();
-
-                    // propaga os labels 
-                    listacont.Rotulo2 = cmd.Rotulo2;
-                    listacont.Rotulo1 = cmd.Rotulo1;
-                    if (ListaCont(listacont))
-                    {
-                        listacmd.Cod += EscreverCodigo(cmd.Cod);
-                        listacmd.Cod += EscreverCodigo(listacont.Cod);
-                        return true;
-                    }
-                    return false;
-                }
-                return false;
-            }
-            return false;
-        }
-
-        public static bool ListaCont(Campo listacont)
-        {
-            var cmd = new Campo();
-            var listacont1 = new Campo();
-
-            // propaga os labels 
-            cmd.Rotulo2 = listacont.Rotulo2;
-            cmd.Rotulo1 = listacont.Rotulo1;
-            if (Statement(cmd))
-            {
-                if (IdTokenAtual == TkPontoVirgula)
-                {
-                    LerToken();
-
-                    // propaga os labels 
-                    listacont1.Rotulo2 = cmd.Rotulo2;
-                    listacont1.Rotulo1 = cmd.Rotulo1;
-                    if (ListaCont(listacont1))
-                    {
-                        listacont.Cod += EscreverCodigo(cmd.Cod);
-                        listacont.Cod += EscreverCodigo(listacont1.Cod);
-                        return true;
-                    }
-                    return false;
-                }
-                return false;
-            }
-            return true;
-        }
-
-        public static bool C(Campo c)
-        {
-            Campo e = new Campo();
-            Campo rbh = new Campo();
-            Campo rbs = new Campo();
-            if (E(e))
-            {
-                rbh.Cod = e.Cod;
-                rbh.Place = e.Place;
-                if (RB(rbh, rbs))
-                {
-                    c.Cod = rbs.Cod;
-                    c.Place = rbs.Place;
-                    return true;
-                }
-                return false;
-            }
-            return false;
-        }
-
-        public static bool RB(Campo rbh, Campo rbs)
-        {
-            Campo rb1h = new Campo();
-            Campo rb1s = new Campo();
-            Campo e = new Campo();
-
-            if (IdTokenAtual == TkIgual)
-            {
-                LerToken();
-                if (E(e))
-                {
-                    rb1h.Place = GerarTemp();
-                    rb1h.Cod += EscreverCodigo(rbh.Cod);
-                    rb1h.Cod += EscreverCodigo(e.Cod);
-                    rb1h.Cod += EscreverCodigo("==", rb1h.Place, rbh.Place, e.Place);
-                    if (RB(rb1h, rb1s))
-                    {
-                        rbs.Cod = rb1s.Cod;
-                        rbs.Place = rb1s.Place;
-                        return true;
-                    }
-                }
-            }
-            else if (IdTokenAtual == TkDiferente)
-            {
-                LerToken();
-                if (E(e))
-                {
-                    rb1h.Place = GerarTemp();
-                    rb1h.Cod += EscreverCodigo(rbh.Cod);
-                    rb1h.Cod += EscreverCodigo(e.Cod);
-                    rb1h.Cod += EscreverCodigo("!=", rb1h.Place, rbh.Place, e.Place);
-                    if (RB(rb1h, rb1s))
-                    {
-                        rbs.Cod = rb1s.Cod;
-                        rbs.Place = rb1s.Place;
-                        return true;
-                    }
-                }
-            }
-            else if (IdTokenAtual == TkMaiorIgual)
-            {
-                LerToken();
-                if (E(e))
-                {
-                    rb1h.Place = GerarTemp();
-                    rb1h.Cod += EscreverCodigo(rbh.Cod);
-                    rb1h.Cod += EscreverCodigo(e.Cod);
-                    rb1h.Cod += EscreverCodigo(">=", rb1h.Place, rbh.Place, e.Place);
-                    if (RB(rb1h, rb1s))
-                    {
-                        rbs.Cod = rb1s.Cod;
-                        rbs.Place = rb1s.Place;
-                        return true;
-                    }
-                }
-            }
-            else if (IdTokenAtual == TkMaior)
-            {
-                LerToken();
-                if (E(e))
-                {
-                    rb1h.Place = GerarTemp();
-                    rb1h.Cod += EscreverCodigo(rbh.Cod);
-                    rb1h.Cod += EscreverCodigo(e.Cod);
-                    rb1h.Cod += EscreverCodigo(">", rb1h.Place, rbh.Place, e.Place);
-                    if (RB(rb1h, rb1s))
-                    {
-                        rbs.Cod = rb1s.Cod;
-                        rbs.Place = rb1s.Place;
-                        return true;
-                    }
-                }
-            }
-            else if (IdTokenAtual == TkMenorIgual)
-            {
-                LerToken();
-                if (E(e))
-                {
-                    rb1h.Place = GerarTemp();
-                    rb1h.Cod += EscreverCodigo(rbh.Cod);
-                    rb1h.Cod += EscreverCodigo(e.Cod);
-                    rb1h.Cod += EscreverCodigo("<=", rb1h.Place, rbh.Place, e.Place);
-                    if (RB(rb1h, rb1s))
-                    {
-                        rbs.Cod = rb1s.Cod;
-                        rbs.Place = rb1s.Place;
-                        return true;
-                    }
-                }
-            }
-            else if (IdTokenAtual == TkMenor)
-            {
-                LerToken();
-                if (E(e))
-                {
-
-                    rb1h.Place = GerarTemp();
-                    rb1h.Cod += EscreverCodigo(rbh.Cod);
-                    rb1h.Cod += EscreverCodigo(e.Cod);
-                    rb1h.Cod += EscreverCodigo("<", rb1h.Place, rbh.Place, e.Place);
-                    if (RB(rb1h, rb1s))
-                    {
-                        rbs.Cod = rb1s.Cod;
-                        rbs.Place = rb1s.Place;
-                        return true;
-                    }
-                }
-            }
-            else
-            {
-                rbs.Cod = rbh.Cod;
-                rbs.Place = rbh.Place;
-                return true;
-            }
-            return false;
-        }
-
-        public static bool E(Campo expression)
-        {
-            Campo t = new Campo();
-            Campo rh = new Campo();
-            Campo rs = new Campo();
-            if (T(t))
-            {
-                rh.Cod = t.Cod;
-                rh.Place = t.Place;
-                if (R(rh, rs))
-                {
-                    expression.Cod = rs.Cod;
-                    expression.Place = rs.Place;
-                    return true;
-                }
-                return false;
-            }
-            return false;
-        }
-
-        public static bool R(Campo rh, Campo rs)
-        {
-            Campo r1h = new Campo();
-            Campo r1s = new Campo();
-            Campo t = new Campo();
-
-            if (IdTokenAtual == TkAddiction)
-            {
-                LerToken();
-                if (T(t))
-                {
-                    r1h.Place = GerarTemp();
-                    r1h.Cod += EscreverCodigo(rh.Cod);
-                    r1h.Cod += EscreverCodigo(t.Cod);
-                    r1h.Cod += EscreverCodigo("+", r1h.Place, rh.Place, t.Place);
-                    if (R(r1h, r1s))
-                    {
-                        rs.Cod = r1s.Cod;
-                        rs.Place = r1s.Place;
-                        return true;
-                    }
-                    return false;
-                }
-                return false;
-            }
-            else if (IdTokenAtual == TkSubtraction)
-            {
-                LerToken();
-                if (T(t))
-                {
-                    r1h.Place = GerarTemp();
-                    r1h.Cod += EscreverCodigo(rh.Cod);
-                    r1h.Cod += EscreverCodigo(t.Cod);
-                    r1h.Cod += EscreverCodigo("-", r1h.Place, rh.Place, t.Place);
-                    if (R(r1h, r1s))
-                    {
-                        rs.Cod = r1s.Cod;
-                        rs.Place = r1s.Place;
-                        return true;
-                    }
-                    return false;
-                }
-                return false;
-            }
-            else
-            {
-                rs.Cod = rh.Cod;
-                rs.Place = rh.Place;
-                return true;
-            }
-        }
-
-        public static bool T(Campo t)
-        {
-            Campo f = new Campo();
-            Campo rah = new Campo();
-            Campo ras = new Campo();
-            if (F(f))
-            {
-                rah.Cod = f.Cod;
-                rah.Place = f.Place;
-                if (RA(rah, ras))
-                {
-                    t.Cod = ras.Cod;
-                    t.Place = ras.Place;
-                    return true;
-                }
-                return false;
-            }
-            return false;
-        }
-
-        public static bool RA(Campo rah, Campo ras)
-        {
-            Campo ra1h = new Campo();
-            Campo ra1s = new Campo();
-            Campo f = new Campo();
-
-            if (IdTokenAtual == TkMultiplication)
-            {
-                LerToken();
-                if (F(f))
-                {
-                    ra1h.Place = GerarTemp();
-                    ra1h.Cod += EscreverCodigo(rah.Cod);
-                    ra1h.Cod += EscreverCodigo(f.Cod);
-                    ra1h.Cod += EscreverCodigo("*", ra1h.Place, rah.Place, f.Place);
-                    if (RA(ra1h, ra1s))
-                    {
-                        ras.Cod = ra1s.Cod;
-                        ras.Place = ra1s.Place;
-                        return true;
-                    }
-                    return false;
-                }
-                return false;
-            }
-            else if (IdTokenAtual == TkDivision)
-            {
-                LerToken();
-                if (F(f))
-                {
-                    ra1h.Place = GerarTemp();
-                    ra1h.Cod += EscreverCodigo(rah.Cod);
-                    ra1h.Cod += EscreverCodigo(f.Cod);
-                    ra1h.Cod += EscreverCodigo("/", ra1h.Place, rah.Place, f.Place);
-                    if (RA(ra1h, ra1s))
-                    {
-                        ras.Place = ra1s.Place;
-                        ras.Cod = ra1s.Cod;
-                        return true;
-                    }
-                    return false;
-                }
-                return false;
-            }
-            else // vazio
-            {
-                ras.Place = rah.Place;
-                ras.Cod = rah.Cod;
-                return true;
-            }
-        }
-
-        public static bool F(Campo f)
-        {
-            Campo e = new Campo();
-
-            if (IdTokenAtual == TkConst)
-            {
-                f.Place = TokenAtual;
-                LerToken();
-                return true;
-            }
-            else if (IdTokenAtual == TkAbreParentese)
-            {
-                LerToken();
-                if (E(e))
-                {
-                    if (IdTokenAtual == TkFechaParentese)
-                    {
-                        LerToken();
-                        f.Place = e.Place;
-                        f.Cod = e.Cod;
-                        return true;
-                    }
-                    return false;
-                }
-                return false;
-            }
-            else if (IdTokenAtual == TkId)
-            {
-                f.Place = TokenAtual;
-                f.Cod = "";
-                LerToken();
-                return true;
             }
             return false;
         }
