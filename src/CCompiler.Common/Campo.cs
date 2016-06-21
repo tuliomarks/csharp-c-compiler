@@ -17,6 +17,8 @@ namespace CCompiler.Common
         public string RotuloDefault { get; set; }
         public string CodTestesSwitch { get; set; }
 
+        public bool EhDeclarador { get; set; }
+
         public string Proc { get; set; }
         public Variavel Retorno { get; set; }
         public List<Variavel> Argumentos { get; set; }

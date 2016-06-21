@@ -42,7 +42,7 @@ namespace AvalExpressoes
 
                         else
                         {
-                            Console.WriteLine("==== Sintaxe incorreta em ({0}, {1}) {2}", GeradorC3E.LinhaTokenAtual, GeradorC3E.ColunaTokenAtual, GeradorC3E.TokenAtual);
+                            Console.WriteLine("==== Sintaxe incorreta em {2}", GeradorC3E.LinhaTokenAtual, GeradorC3E.ColunaTokenAtual, GeradorC3E.TokenAtual);
                             if (GeradorC3E.Exceptions.Any())
                                 Console.WriteLine(GeradorC3E.Exceptions.First().Message);
 

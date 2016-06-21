@@ -1,13 +1,19 @@
  void teste(int a){
-   a&;
+
+    a+1
  }
+
  
  int main(int args = 1, long accc = 2){
  
+	
 	teste(1);
 	
+	
 	return;
- }
+ 
+  }
+ 
  
  
  

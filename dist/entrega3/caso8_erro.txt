@@ -3,10 +3,10 @@ int teste(){
   return a;
 }
 
+// valida contexto das variaveis
 int main(){
-        int b=0;
 	teste();
-	while(b<10){
-		b+=1;
+	while(a<10){
+		a+=1;
 	}
 }

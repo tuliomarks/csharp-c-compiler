@@ -1,5 +1,5 @@
 int main(){
-	int a = 0;
+	int a = 0, b =2, c=3;
 	while(a<10){
 		a+=1;
 	}

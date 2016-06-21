@@ -1,0 +1,5 @@
+// sem o main
+int teste(){
+  int a=0;
+  return a;
+}

@@ -260,16 +260,21 @@ namespace CCompiler.Common
                     {
                         c = LerChar();
                         estado = 1;
+                        continue;
                     }
                     else if (c >= 'a' && c <= 'z' || c == '_')
                     {
                         c = LerChar();
                         estado = 1;
+                        continue;
                     }
                     else if (c == null || c == '\n' || c == '\r' || c == '\t' || c == ' ')
                     {
                         c = LerChar();
+                        continue;
                     }
+                    GerarExcessao(new[] { "identificador", "palavra reservada" });
+                    break;
                 }
                 else if (estado == 1)
                 {
@@ -584,14 +589,14 @@ namespace CCompiler.Common
         private static void GerarExcessaoTipoDup(string nome)
         {
             Exceptions.Add(
-                new Exception(string.Format("({0},{1}) O identificador \"{2}\" já esta declarada.", LinhaTokenAtual,
+                new Exception(string.Format("({0},{1}) O identificador \"{2}\" já esta declarado.", LinhaTokenAtual,
                     ColunaTokenAtual, nome)));
         }
 
         private static void GerarExcessaoVarNaoDecl(string nome)
         {
             Exceptions.Add(
-                new Exception(string.Format("({0},{1}) O identificador \"{2}\" não esta declarada.", LinhaTokenAtual,
+                new Exception(string.Format("({0},{1}) O identificador \"{2}\" não esta declarado.", LinhaTokenAtual,
                     ColunaTokenAtual, nome)));
         }
 
@@ -656,10 +661,13 @@ namespace CCompiler.Common
         }
 
         // ----------------------------------------------------
-        // ExternalDeclaration -> Declaration ExternalDeclaration
+        // ExternalDeclaration -> Declaration DeclarationRec
 
-        // Declaration -> TypeSpecifier Declarator (ParametersList) CompoundStatement
+        // Declaration -> TypeSpecifier Declarator (ParametersList) { FunctionStatement }
         // Declaration -> TypeSpecifier Declarator InitDeclarator DeclaratorListRec;
+
+        // DeclarationRec -> Declaration DeclarationRec
+        // DeclarationRec -> <vazio>
 
         // DeclaratorListRec -> , Declarator InitDeclarator DeclaratorListRec
         // DeclaratorListRec -> <vazio>
@@ -683,7 +691,7 @@ namespace CCompiler.Common
         // ParametersList -> TypeSpecifier Declarator InitDeclarator ParametersListRec
         // ParametersList -> <vazio>
         // ParametersListRec -> , TypeSpecifier Declarator InitDeclarator ParametersListRec
-        // ParametersListRec -> <vazio>
+        // ParametersListRec -> <vazio>        
 
         public static bool ExternalDeclaration(Campo externalDeclaration)
         {
@@ -691,13 +699,15 @@ namespace CCompiler.Common
             var declaration = new Campo();
             if (Declaration(declaration))
             {
+                externalDeclaration.Cod += EscreverCodigo("goto main");
                 externalDeclaration.Cod += EscreverCodigo(declaration.Cod);
-                if (ExternalDeclaration(externalDeclaration1))
+                if (DeclarationRec(externalDeclaration1))
                 {
-                    externalDeclaration.Cod += EscreverCodigo(externalDeclaration1.Cod);
-                    return true;
-                }
+                    externalDeclaration.Cod += EscreverCodigo(externalDeclaration1.Cod);                    
+                }                
             }
+
+            if (!VerificarVariavelTab("main")) return false;
             if (Exceptions.Count > 0) return false;
 
             return true;
@@ -739,15 +749,23 @@ namespace CCompiler.Common
                                 if (VerificarToken(TkFechaParentese))
                                 {
                                     LerToken();
-                                    if (FunctionStatement(functionStatement))
+                                    if (VerificarToken(TkAbreChaves))
                                     {
-                                        declaration.Cod += "\n";
-                                        declaration.Cod += EscreverRotulo(declarator.Place);
-                                        declaration.Cod += EscreverCodigo(declarator.Cod);
-                                        declaration.Cod += EscreverCodigo(parametersList.Cod);
-                                        declaration.Cod += EscreverCodigo(functionStatement.Cod);
-                                        declaration.Cod += "\n";
-                                        return true;
+                                        LerToken();
+                                        if (FunctionStatement(functionStatement))
+                                        {
+                                            if (VerificarToken(TkFechaChaves))
+                                            {
+                                                LerToken();
+                                                declaration.Cod += "\n";
+                                                declaration.Cod += EscreverRotulo(declarator.Place);
+                                                declaration.Cod += EscreverCodigo(declarator.Cod);
+                                                declaration.Cod += EscreverCodigo(parametersList.Cod);
+                                                declaration.Cod += EscreverCodigo(functionStatement.Cod);
+                                                declaration.Cod += "\n";
+                                                return true;
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -781,6 +799,21 @@ namespace CCompiler.Common
                 }
             }
             return false;
+        }
+
+        public static bool DeclarationRec(Campo declarationRec)
+        {
+            var externalDeclaration1 = new Campo();
+            var declaration = new Campo();
+            if (Declaration(declaration))
+            {
+                declarationRec.Cod += EscreverCodigo(declaration.Cod);
+                if (DeclarationRec(externalDeclaration1))
+                {
+                    declarationRec.Cod += EscreverCodigo(externalDeclaration1.Cod);
+                }
+            }
+            return true;
         }
 
         public static bool TypeSpecifier(Campo typeSpecifier)
@@ -886,6 +919,9 @@ namespace CCompiler.Common
             if (VerificarToken(TkAssignment))
             {
                 LerToken();
+
+                assignmentExpression.EhDeclarador = true;
+
                 if (AssignmentExpression(assignmentExpression))
                 {
                     initDeclarator.Cod += EscreverCodigo(assignmentExpression.Cod);
@@ -998,7 +1034,7 @@ namespace CCompiler.Common
         // JumpStatement -> return Expression;
         // JumpStatement -> return;
 
-        // FunctionStatement -> { BlockItemList } 
+        // FunctionStatement -> BlockItemList
         // FunctionStatement -> <vazio>        
 
         // CompoundStatement -> { BlockItemList } 
@@ -1111,14 +1147,14 @@ namespace CCompiler.Common
                 statement.Cod = selectionStatement.Cod;
                 return true;
             }
-            else if (ExpressionStatement(expressionStatement))
-            {
-                statement.Cod = expressionStatement.Cod;
-                return true;
-            }
             else if (JumpStatement(jumpStatement))
             {
                 statement.Cod = jumpStatement.Cod;
+                return true;
+            }
+            else if (ExpressionStatement(expressionStatement))
+            {
+                statement.Cod = expressionStatement.Cod;
                 return true;
             }
             return false;
@@ -1128,22 +1164,13 @@ namespace CCompiler.Common
         {
             var blockItemList = new Campo();
 
-            if (VerificarToken(TkAbreChaves))
+            // propaga os labels 
+            blockItemList.Rotulo2 = functionStatement.Rotulo2;
+            blockItemList.Rotulo1 = functionStatement.Rotulo1;
+            if (BlockItemList(blockItemList))
             {
-                LerToken();
-
-                // propaga os labels 
-                blockItemList.Rotulo2 = functionStatement.Rotulo2;
-                blockItemList.Rotulo1 = functionStatement.Rotulo1;
-                if (BlockItemList(blockItemList))
-                {
-                    if (VerificarToken(TkFechaChaves))
-                    {
-                        LerToken();
-                        functionStatement.Cod = blockItemList.Cod;
-                        return true;
-                    }
-                }
+                functionStatement.Cod = blockItemList.Cod;
+                return true;
             }
             return false;
         }
@@ -1172,11 +1199,12 @@ namespace CCompiler.Common
                             compoundStatement.Cod = blockItemList.Cod;
                             return true;
                         }
+                        GerarExcessao(new[] { "}" });
+                        return false;
                     }
                 }
                 catch (Exception)
                 {
-
                     throw;
                 }
                 finally
@@ -1278,10 +1306,20 @@ namespace CCompiler.Common
                                             iterationStatement.Cod += EscreverRotulo(statement.Rotulo2);
                                             return true;
                                         }
+                                        GerarExcessao(new[] { "if", "while", "do", "for", "switch", "atribuição" });
+                                        return false;
                                     }
+                                    GerarExcessao(new[] { ")" });
+                                    return false;
                                 }
+                                GerarExcessao(new[] { "expressao" });
+                                return false;
                             }
+                            GerarExcessao(new[] { ";" });
+                            return false;
                         }
+                        GerarExcessao(new[] { "expressao" });
+                        return false;
                     }
                     else if (Expression(expression))
                     {
@@ -1313,13 +1351,29 @@ namespace CCompiler.Common
                                                 return true;
 
                                             }
+                                            GerarExcessao(new[] { "if", "while", "do", "for", "switch", "atribuição" });
+                                            return false;
                                         }
+                                        GerarExcessao(new[] { ")" });
+                                        return false;
                                     }
+                                    GerarExcessao(new[] { "expressao" });
+                                    return false;
                                 }
+                                GerarExcessao(new[] { ";" });
+                                return false;
                             }
+                            GerarExcessao(new[] { "expressao" });
+                            return false;
                         }
+                        GerarExcessao(new[] { ";" });
+                        return false;
                     }
+                    GerarExcessao(new[] { "expressao", "declaracao" });
+                    return false;
                 }
+                GerarExcessao(new[] { "(" });
+                return false;
             }
             else if (VerificarToken(TkDo))
             {
@@ -1350,11 +1404,23 @@ namespace CCompiler.Common
                                         iterationStatement.Cod += EscreverRotulo(statement.Rotulo2);
                                         return true;
                                     }
+                                    GerarExcessao(new[] { ";" });
+                                    return false;
                                 }
+                                GerarExcessao(new[] { ")" });
+                                return false;
                             }
+                            GerarExcessao(new[] { "expressao" });
+                            return false;
                         }
+                        GerarExcessao(new[] { "(" });
+                        return false;
                     }
+                    GerarExcessao(new[] { "while" });
+                    return false;
                 }
+                GerarExcessao(new[] { "if", "while", "do", "for", "switch", "atribuição" });
+                return false;
             }
             else if (VerificarToken(TkWhile))
             {
@@ -1380,9 +1446,17 @@ namespace CCompiler.Common
                                 iterationStatement.Cod += EscreverRotulo(statement.Rotulo2);
                                 return true;
                             }
+                            GerarExcessao(new[] { "if", "while", "do", "for", "switch", "atribuição", ";", "expressao" });
+                            return false;
                         }
+                        GerarExcessao(new[] { ")" });
+                        return false;
                     }
+                    GerarExcessao(new[] { "expressao" });
+                    return false;
                 }
+                GerarExcessao(new[] { "(" });
+                return false;
             }
             return false;
         }
@@ -1405,9 +1479,6 @@ namespace CCompiler.Common
                         if (VerificarToken(TkFechaParentese))
                         {
                             LerToken();
-
-                            //statement1.Rotulo1 = GerarRotulo();
-                            //statement1.Rotulo2 = GerarRotulo();
                             statement1.Rotulo1 = selectionStatement.Rotulo1; // aqui vai ser rotulo do while
                             statement1.Rotulo2 = selectionStatement.Rotulo2;
                             if (Statement(statement1))
@@ -1438,9 +1509,17 @@ namespace CCompiler.Common
                                     return true;
                                 }
                             }
+                            GerarExcessao(new[] { "if", "while", "do", "for", "switch", "atribuição", ";", "expressao" });
+                            return false;
                         }
+                        GerarExcessao(new[] { ")" });
+                        return false;
                     }
+                    GerarExcessao(new[] { "expressao" });
+                    return false;
                 }
+                GerarExcessao(new[] { "(" });
+                return false;
             }
             else if (VerificarToken(TkSwitch))
             {
@@ -1473,11 +1552,23 @@ namespace CCompiler.Common
                                         selectionStatement.Cod += EscreverRotulo(switchStatement.Rotulo2);
                                         return true;
                                     }
+                                    GerarExcessao(new[] { "}" });
+                                    return false;
                                 }
+                                GerarExcessao(new[] { "constante", "case", "default" });
+                                return false;
                             }
+                            GerarExcessao(new[] { "{" });
+                            return false;
                         }
+                        GerarExcessao(new[] { ")" });
+                        return false;
                     }
+                    GerarExcessao(new[] { "expressao" });
+                    return false;
                 }
+                GerarExcessao(new[] { "(" });
+                return false;
             }
             return false;
         }
@@ -1545,7 +1636,11 @@ namespace CCompiler.Common
                         switchStatement.CodTestesSwitch += EscreverCodigo(statement.Cod);
                         return true;
                     }
+                    GerarExcessao(new[] { "if", "while", "do", "for", "switch", "atribuição", ";", "expressao" });
+                    return false;
                 }
+                GerarExcessao(new[] { ":" });
+                return false;
             }
             return true;
         }
@@ -1571,7 +1666,11 @@ namespace CCompiler.Common
                         labeledStatement.CodTestesSwitch += EscreverCodigo(statement.Cod);
                         return true;
                     }
+                    GerarExcessao(new[] { "if", "while", "do", "for", "switch", "atribuição", ";", "expressao" });
+                    return false;
                 }
+                GerarExcessao(new[] { ":" });
+                return false;
             }
             else if (VerificarToken(TkCase))
             {
@@ -1587,14 +1686,19 @@ namespace CCompiler.Common
                         statement.Rotulo2 = labeledStatement.Rotulo2;
                         if (Statement(statement))
                         {
-
                             labeledStatement.Rotulo1 = GerarRotulo();
                             labeledStatement.CodTestesSwitch += EscreverRotulo(labeledStatement.Rotulo1);
                             labeledStatement.CodTestesSwitch += EscreverCodigo(statement.Cod);
                             return true;
                         }
+                        GerarExcessao(new[] { "if", "while", "do", "for", "switch", "atribuição", ";", "expressao" });
+                        return false;
                     }
+                    GerarExcessao(new[] { ":" });
+                    return false;
                 }
+                GerarExcessao(new[] { "constante" });
+                return false;
             }
             return false;
         }
@@ -1640,7 +1744,12 @@ namespace CCompiler.Common
         public static bool ExpressionStatement(Campo expressionStatement)
         {
             var expression = new Campo();
-            if (Expression(expression))
+            if (IdTokenAtual == TkPontoVirgula)
+            {
+                LerToken();
+                return true;
+            }
+            else if (Expression(expression))
             {
                 if (IdTokenAtual == TkPontoVirgula)
                 {
@@ -1649,11 +1758,6 @@ namespace CCompiler.Common
                     return true;
                 }
             }
-            else if (IdTokenAtual == TkPontoVirgula)
-            {
-                LerToken();
-                return true;
-            }           
             return false;
         }
 
@@ -1695,6 +1799,7 @@ namespace CCompiler.Common
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else
@@ -1710,6 +1815,8 @@ namespace CCompiler.Common
             var logicalOrExpression = new Campo();
             var assignmentExpression1 = new Campo();
 
+            logicalOrExpression.EhDeclarador = assignmentExpression.EhDeclarador;
+            assignmentExpression1.EhDeclarador = assignmentExpression.EhDeclarador;
             if (LogicalOrExpression(logicalOrExpression))
             {
                 assignmentExpression.Cod = logicalOrExpression.Cod;
@@ -1724,6 +1831,9 @@ namespace CCompiler.Common
                         assignmentExpression.Cod += EscreverCodigo(string.Empty, logicalOrExpression.Place, assignmentExpression1.Place, string.Empty);
                         return true;
                     }
+                    GerarExcessao(new[] { "expressao" });
+                    return false;
+
                 }
                 else if (VerificarToken(TkMultiplicationAssignment)) // identifica atribuicao
                 {
@@ -1734,6 +1844,8 @@ namespace CCompiler.Common
                         assignmentExpression.Cod += EscreverCodigo("*", logicalOrExpression.Place, logicalOrExpression.Place, assignmentExpression1.Place);
                         return true;
                     }
+                    GerarExcessao(new[] { "expressao" });
+                    return false;
                 }
                 else if (VerificarToken(TkDivisionAssignment)) // identifica atribuicao
                 {
@@ -1744,6 +1856,8 @@ namespace CCompiler.Common
                         assignmentExpression.Cod += EscreverCodigo("/", logicalOrExpression.Place, logicalOrExpression.Place, assignmentExpression1.Place);
                         return true;
                     }
+                    GerarExcessao(new[] { "expressao" });
+                    return false;
                 }
                 else if (VerificarToken(TkAdditionAssignment)) // identifica atribuicao
                 {
@@ -1754,6 +1868,8 @@ namespace CCompiler.Common
                         assignmentExpression.Cod += EscreverCodigo("+", logicalOrExpression.Place, logicalOrExpression.Place, assignmentExpression1.Place);
                         return true;
                     }
+                    GerarExcessao(new[] { "expressao" });
+                    return false;
                 }
                 else if (VerificarToken(TkSubtractionAssignment)) // identifica atribuicao
                 {
@@ -1764,6 +1880,8 @@ namespace CCompiler.Common
                         assignmentExpression.Cod += EscreverCodigo("-", logicalOrExpression.Place, logicalOrExpression.Place, assignmentExpression1.Place);
                         return true;
                     }
+                    GerarExcessao(new[] { "expressao" });
+                    return false;
                 }
                 else if (VerificarToken(TkRemainderAssignment)) // identifica atribuicao
                 {
@@ -1774,6 +1892,8 @@ namespace CCompiler.Common
                         assignmentExpression.Cod += EscreverCodigo("%", logicalOrExpression.Place, logicalOrExpression.Place, assignmentExpression1.Place);
                         return true;
                     }
+                    GerarExcessao(new[] { "expressao" });
+                    return false;
                 }
                 return true;
             }
@@ -1785,14 +1905,18 @@ namespace CCompiler.Common
             var logicalAndExpression = new Campo();
             var logicalOrExpressionRecH = new Campo();
             var logicalOrExpressionRecS = new Campo();
+
+            logicalAndExpression.EhDeclarador = logicalOrExpression.EhDeclarador;
             if (LogicalAndExpression(logicalAndExpression))
             {
+                logicalOrExpressionRecH.EhDeclarador = logicalOrExpression.EhDeclarador;
                 logicalOrExpressionRecH.Cod = logicalAndExpression.Cod;
                 logicalOrExpressionRecH.Place = logicalAndExpression.Place;
                 if (LogicalOrExpressionRec(logicalOrExpressionRecH, logicalOrExpressionRecS))
                 {
                     logicalOrExpression.Cod = logicalOrExpressionRecS.Cod;
                     logicalOrExpression.Place = logicalOrExpressionRecS.Place;
+                    logicalOrExpression.EhDeclarador = logicalOrExpressionRecS.EhDeclarador;
                     return true;
                 }
             }
@@ -1804,9 +1928,12 @@ namespace CCompiler.Common
             var logicalAndExpression = new Campo();
             var logicalOrExpressionRec1H = new Campo();
             var logicalOrExpressionRec1S = new Campo();
+
             if (VerificarToken(TkLogicalOr))
             {
                 LerToken();
+
+                logicalAndExpression.EhDeclarador = logicalOrExpressionRecH.EhDeclarador;
                 if (LogicalAndExpression(logicalAndExpression))
                 {
                     var lblFim = GerarRotulo();
@@ -1831,12 +1958,14 @@ namespace CCompiler.Common
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else
             {
                 logicalOrExpressionRecS.Cod = logicalOrExpressionRecH.Cod;
                 logicalOrExpressionRecS.Place = logicalOrExpressionRecH.Place;
+                logicalOrExpressionRecS.EhDeclarador = logicalOrExpressionRecH.EhDeclarador;
                 return true;
             }
         }
@@ -1846,14 +1975,17 @@ namespace CCompiler.Common
             var inclusiveOrExpression = new Campo();
             var logicalAndExpressionRecH = new Campo();
             var logicalAndExpressionRecS = new Campo();
+            inclusiveOrExpression.EhDeclarador = logicalAndExpression.EhDeclarador;
             if (InclusiveOrExpression(inclusiveOrExpression))
             {
                 logicalAndExpressionRecH.Cod = inclusiveOrExpression.Cod;
                 logicalAndExpressionRecH.Place = inclusiveOrExpression.Place;
+                logicalAndExpressionRecH.EhDeclarador = inclusiveOrExpression.EhDeclarador;
                 if (LogicalAndExpressionRec(logicalAndExpressionRecH, logicalAndExpressionRecS))
                 {
                     logicalAndExpression.Cod = logicalAndExpressionRecS.Cod;
                     logicalAndExpression.Place = logicalAndExpressionRecS.Place;
+                    logicalAndExpression.EhDeclarador = logicalAndExpressionRecS.EhDeclarador;
                     return true;
                 }
             }
@@ -1868,6 +2000,7 @@ namespace CCompiler.Common
             if (VerificarToken(TkLogicalAnd))
             {
                 LerToken();
+                inclusiveOrExpression.EhDeclarador = logicalAndExpressionRecH.EhDeclarador;
                 if (InclusiveOrExpression(inclusiveOrExpression))
                 {
                     var lblFim = GerarRotulo();
@@ -1889,15 +2022,18 @@ namespace CCompiler.Common
                     {
                         logicalAndExpressionRecS.Cod = logicalAndExpressionRec1S.Cod;
                         logicalAndExpressionRecS.Place = logicalAndExpressionRec1S.Place;
+                        logicalAndExpressionRecS.EhDeclarador = logicalAndExpressionRec1S.EhDeclarador;
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else
             {
                 logicalAndExpressionRecS.Cod = logicalAndExpressionRecH.Cod;
                 logicalAndExpressionRecS.Place = logicalAndExpressionRecH.Place;
+                logicalAndExpressionRecS.EhDeclarador = logicalAndExpressionRecH.EhDeclarador;
                 return true;
             }
         }
@@ -1907,14 +2043,17 @@ namespace CCompiler.Common
             var andOrExpression = new Campo();
             var inclusiveOrExpressionRecH = new Campo();
             var inclusiveOrExpressionRecS = new Campo();
+            andOrExpression.EhDeclarador = inclusiveOrExpression.EhDeclarador;
             if (AndExpression(andOrExpression))
             {
                 inclusiveOrExpressionRecH.Cod = andOrExpression.Cod;
                 inclusiveOrExpressionRecH.Place = andOrExpression.Place;
+                inclusiveOrExpressionRecH.EhDeclarador = andOrExpression.EhDeclarador;
                 if (InclusiveOrExpressionRec(inclusiveOrExpressionRecH, inclusiveOrExpressionRecS))
                 {
                     inclusiveOrExpression.Cod = inclusiveOrExpressionRecS.Cod;
                     inclusiveOrExpression.Place = inclusiveOrExpressionRecS.Place;
+                    inclusiveOrExpression.EhDeclarador = inclusiveOrExpressionRecS.EhDeclarador;
                     return true;
                 }
             }
@@ -1929,25 +2068,31 @@ namespace CCompiler.Common
             if (VerificarToken(TkOr))
             {
                 LerToken();
+                andOrExpression.EhDeclarador = inclusiveOrExpressionRecH.EhDeclarador;
                 if (AndExpression(andOrExpression))
                 {
                     inclusiveOrExpressionRec1H.Place = GerarTemp();
                     inclusiveOrExpressionRec1H.Cod += EscreverCodigo(inclusiveOrExpressionRecH.Cod);
                     inclusiveOrExpressionRec1H.Cod += EscreverCodigo(andOrExpression.Cod);
                     inclusiveOrExpressionRec1H.Cod += EscreverCodigo("or", inclusiveOrExpressionRec1H.Place, inclusiveOrExpressionRecH.Place, andOrExpression.Place);
+
+                    inclusiveOrExpressionRec1H.EhDeclarador = inclusiveOrExpressionRecH.EhDeclarador;
                     if (InclusiveOrExpressionRec(inclusiveOrExpressionRec1H, inclusiveOrExpressionRec1S))
                     {
                         inclusiveOrExpressionRecS.Cod = inclusiveOrExpressionRec1S.Cod;
                         inclusiveOrExpressionRecS.Place = inclusiveOrExpressionRec1S.Place;
+                        inclusiveOrExpressionRecS.EhDeclarador = inclusiveOrExpressionRec1S.EhDeclarador;
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else
             {
                 inclusiveOrExpressionRecS.Cod = inclusiveOrExpressionRecH.Cod;
                 inclusiveOrExpressionRecS.Place = inclusiveOrExpressionRecH.Place;
+                inclusiveOrExpressionRecS.EhDeclarador = inclusiveOrExpressionRecH.EhDeclarador;
                 return true;
             }
         }
@@ -1957,14 +2102,17 @@ namespace CCompiler.Common
             var equalityExpression = new Campo();
             var andExpressionRecH = new Campo();
             var andExpressionRecS = new Campo();
+            equalityExpression.EhDeclarador = andExpression.EhDeclarador;
             if (EqualityExpression(equalityExpression))
             {
                 andExpressionRecH.Cod = equalityExpression.Cod;
                 andExpressionRecH.Place = equalityExpression.Place;
+                andExpressionRecH.EhDeclarador = equalityExpression.EhDeclarador;
                 if (AndExpressionRec(andExpressionRecH, andExpressionRecS))
                 {
                     andExpression.Cod = andExpressionRecS.Cod;
                     andExpression.Place = andExpressionRecS.Place;
+                    andExpression.EhDeclarador = andExpressionRecS.EhDeclarador;
                     return true;
                 }
             }
@@ -1979,25 +2127,31 @@ namespace CCompiler.Common
             if (VerificarToken(TkAnd))
             {
                 LerToken();
+                equalityExpression.EhDeclarador = andExpressionRecH.EhDeclarador;
                 if (EqualityExpression(equalityExpression))
                 {
                     andExpressionRec1H.Place = GerarTemp();
                     andExpressionRec1H.Cod += EscreverCodigo(andExpressionRecH.Cod);
                     andExpressionRec1H.Cod += EscreverCodigo(equalityExpression.Cod);
                     andExpressionRec1H.Cod += EscreverCodigo("and", andExpressionRec1H.Place, andExpressionRecH.Place, equalityExpression.Place);
+
+                    andExpressionRec1H.EhDeclarador = andExpressionRecH.EhDeclarador;
                     if (AndExpressionRec(andExpressionRec1H, andExpressionRec1S))
                     {
                         andExpressionRecS.Cod = andExpressionRec1S.Cod;
                         andExpressionRecS.Place = andExpressionRec1S.Place;
+                        andExpressionRecS.EhDeclarador = andExpressionRec1S.EhDeclarador;
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else
             {
                 andExpressionRecS.Cod = andExpressionRecH.Cod;
                 andExpressionRecS.Place = andExpressionRecH.Place;
+                andExpressionRecS.EhDeclarador = andExpressionRecH.EhDeclarador;
                 return true;
             }
         }
@@ -2007,14 +2161,19 @@ namespace CCompiler.Common
             var relationalExpression = new Campo();
             var equalityExpressionRecH = new Campo();
             var equalityExpressionRecS = new Campo();
+
+            relationalExpression.EhDeclarador = equalityExpression.EhDeclarador;
             if (RelationalExpression(relationalExpression))
             {
                 equalityExpressionRecH.Cod = relationalExpression.Cod;
                 equalityExpressionRecH.Place = relationalExpression.Place;
+
+                equalityExpressionRecH.EhDeclarador = equalityExpression.EhDeclarador;
                 if (EqualityExpressionRec(equalityExpressionRecH, equalityExpressionRecS))
                 {
                     equalityExpression.Cod = equalityExpressionRecS.Cod;
                     equalityExpression.Place = equalityExpressionRecS.Place;
+                    equalityExpression.EhDeclarador = equalityExpressionRecS.EhDeclarador;
                     return true;
                 }
             }
@@ -2029,6 +2188,7 @@ namespace CCompiler.Common
             if (VerificarToken(TkIgual))
             {
                 LerToken();
+                relationalExpression.EhDeclarador = equalityExpressionRecH.EhDeclarador;
                 if (RelationalExpression(relationalExpression))
                 {
                     equalityExpressionRec1H.Place = GerarTemp();
@@ -2045,19 +2205,22 @@ namespace CCompiler.Common
                     equalityExpressionRec1H.Cod += EscreverCodigo(string.Empty, equalityExpressionRec1H.Place, "1", string.Empty);
                     equalityExpressionRec1H.Cod += EscreverRotulo(lblFim);
 
-                    //equalityExpressionRec1H.Cod += EscreverCodigo("==", equalityExpressionRec1H.Place, equalityExpressionRecH.Place, relationalExpression.Place);
+                    equalityExpressionRec1H.EhDeclarador = equalityExpressionRecH.EhDeclarador;
                     if (EqualityExpressionRec(equalityExpressionRec1H, equalityExpressionRec1S))
                     {
                         equalityExpressionRecS.Cod = equalityExpressionRec1S.Cod;
                         equalityExpressionRecS.Place = equalityExpressionRec1S.Place;
+                        equalityExpressionRecS.EhDeclarador = equalityExpressionRec1S.EhDeclarador;
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else if (IdTokenAtual == TkDiferente)
             {
                 LerToken();
+                relationalExpression.EhDeclarador = equalityExpressionRecH.EhDeclarador;
                 if (RelationalExpression(relationalExpression))
                 {
                     equalityExpressionRec1H.Place = GerarTemp();
@@ -2074,20 +2237,23 @@ namespace CCompiler.Common
                     equalityExpressionRec1H.Cod += EscreverCodigo(string.Empty, equalityExpressionRec1H.Place, "1", string.Empty);
                     equalityExpressionRec1H.Cod += EscreverRotulo(lblFim);
 
-                    //equalityExpressionRec1H.Cod += EscreverCodigo("!=", equalityExpressionRec1H.Place, equalityExpressionRecH.Place, relationalExpression.Place);
+                    equalityExpressionRec1H.EhDeclarador = equalityExpressionRecH.EhDeclarador;
                     if (EqualityExpressionRec(equalityExpressionRec1H, equalityExpressionRec1S))
                     {
                         equalityExpressionRecS.Cod = equalityExpressionRec1S.Cod;
                         equalityExpressionRecS.Place = equalityExpressionRec1S.Place;
+                        equalityExpressionRecS.EhDeclarador = equalityExpressionRec1S.EhDeclarador;
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else
             {
                 equalityExpressionRecS.Cod = equalityExpressionRecH.Cod;
                 equalityExpressionRecS.Place = equalityExpressionRecH.Place;
+                equalityExpressionRecS.EhDeclarador = equalityExpressionRecH.EhDeclarador;
                 return true;
             }
         }
@@ -2097,14 +2263,17 @@ namespace CCompiler.Common
             var addictiveExpression = new Campo();
             var relationalExpressionRecH = new Campo();
             var relationalExpressionRecS = new Campo();
+            addictiveExpression.EhDeclarador = relationalExpression.EhDeclarador;
             if (AddictiveExpression(addictiveExpression))
             {
                 relationalExpressionRecH.Cod = addictiveExpression.Cod;
                 relationalExpressionRecH.Place = addictiveExpression.Place;
+                relationalExpressionRecH.EhDeclarador = addictiveExpression.EhDeclarador;
                 if (RelationalExpressionRec(relationalExpressionRecH, relationalExpressionRecS))
                 {
                     relationalExpression.Cod = relationalExpressionRecS.Cod;
                     relationalExpression.Place = relationalExpressionRecS.Place;
+                    relationalExpression.EhDeclarador = relationalExpressionRecS.EhDeclarador;
                     return true;
                 }
             }
@@ -2119,6 +2288,7 @@ namespace CCompiler.Common
             if (VerificarToken(TkMenor))
             {
                 LerToken();
+                addictiveExpression.EhDeclarador = relationalExpressionRecH.EhDeclarador;
                 if (AddictiveExpression(addictiveExpression))
                 {
                     relationalExpressionRec1H.Place = GerarTemp();
@@ -2135,19 +2305,22 @@ namespace CCompiler.Common
                     relationalExpressionRec1H.Cod += EscreverCodigo(string.Empty, relationalExpressionRec1H.Place, "1", string.Empty);
                     relationalExpressionRec1H.Cod += EscreverRotulo(lblFim);
 
-                    //relationalExpressionRec1H.Cod += EscreverCodigoIf("<", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
+                    relationalExpressionRec1H.EhDeclarador = relationalExpressionRecH.EhDeclarador;
                     if (RelationalExpressionRec(relationalExpressionRec1H, relationalExpressionRec1S))
                     {
                         relationalExpressionRecS.Cod = relationalExpressionRec1S.Cod;
                         relationalExpressionRecS.Place = relationalExpressionRec1S.Place;
+                        relationalExpressionRecS.EhDeclarador = relationalExpressionRec1S.EhDeclarador;
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else if (VerificarToken(TkMaior))
             {
                 LerToken();
+                addictiveExpression.EhDeclarador = relationalExpressionRecH.EhDeclarador;
                 if (AddictiveExpression(addictiveExpression))
                 {
                     relationalExpressionRec1H.Place = GerarTemp();
@@ -2164,19 +2337,22 @@ namespace CCompiler.Common
                     relationalExpressionRec1H.Cod += EscreverCodigo(string.Empty, relationalExpressionRec1H.Place, "1", string.Empty);
                     relationalExpressionRec1H.Cod += EscreverRotulo(lblFim);
 
-                    //relationalExpressionRec1H.Cod += EscreverCodigo(">", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
+                    relationalExpressionRec1H.EhDeclarador = relationalExpressionRecH.EhDeclarador;
                     if (RelationalExpressionRec(relationalExpressionRec1H, relationalExpressionRec1S))
                     {
                         relationalExpressionRecS.Cod = relationalExpressionRec1S.Cod;
                         relationalExpressionRecS.Place = relationalExpressionRec1S.Place;
+                        relationalExpressionRecS.EhDeclarador = relationalExpressionRec1S.EhDeclarador;
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else if (VerificarToken(TkMenorIgual))
             {
                 LerToken();
+                addictiveExpression.EhDeclarador = relationalExpressionRecH.EhDeclarador;
                 if (AddictiveExpression(addictiveExpression))
                 {
                     relationalExpressionRec1H.Place = GerarTemp();
@@ -2193,19 +2369,22 @@ namespace CCompiler.Common
                     relationalExpressionRec1H.Cod += EscreverCodigo(string.Empty, relationalExpressionRec1H.Place, "1", string.Empty);
                     relationalExpressionRec1H.Cod += EscreverRotulo(lblFim);
 
-                    //relationalExpressionRec1H.Cod += EscreverCodigo("<=", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
+                    relationalExpressionRec1H.EhDeclarador = relationalExpressionRecH.EhDeclarador;
                     if (RelationalExpressionRec(relationalExpressionRec1H, relationalExpressionRec1S))
                     {
                         relationalExpressionRecS.Cod = relationalExpressionRec1S.Cod;
                         relationalExpressionRecS.Place = relationalExpressionRec1S.Place;
+                        relationalExpressionRecS.EhDeclarador = relationalExpressionRec1S.EhDeclarador;
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else if (VerificarToken(TkMaiorIgual))
             {
                 LerToken();
+                addictiveExpression.EhDeclarador = relationalExpressionRecH.EhDeclarador;
                 if (AddictiveExpression(addictiveExpression))
                 {
                     relationalExpressionRec1H.Place = GerarTemp();
@@ -2222,20 +2401,23 @@ namespace CCompiler.Common
                     relationalExpressionRec1H.Cod += EscreverCodigo(string.Empty, relationalExpressionRec1H.Place, "1", string.Empty);
                     relationalExpressionRec1H.Cod += EscreverRotulo(lblFim);
 
-                    //relationalExpressionRec1H.Cod += EscreverCodigo(">=", relationalExpressionRec1H.Place, relationalExpressionRecH.Place, addictiveExpression.Place);
+                    relationalExpressionRec1H.EhDeclarador = relationalExpressionRecH.EhDeclarador;
                     if (RelationalExpressionRec(relationalExpressionRec1H, relationalExpressionRec1S))
                     {
                         relationalExpressionRecS.Cod = relationalExpressionRec1S.Cod;
                         relationalExpressionRecS.Place = relationalExpressionRec1S.Place;
+                        relationalExpressionRecS.EhDeclarador = relationalExpressionRec1S.EhDeclarador;
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else
             {
                 relationalExpressionRecS.Cod = relationalExpressionRecH.Cod;
                 relationalExpressionRecS.Place = relationalExpressionRecH.Place;
+                relationalExpressionRecS.EhDeclarador = relationalExpressionRecH.EhDeclarador;
                 return true;
             }
         }
@@ -2245,14 +2427,17 @@ namespace CCompiler.Common
             var multiplicativeExpression = new Campo();
             var addictiveExpressionRecH = new Campo();
             var addictiveExpressionRecS = new Campo();
+            multiplicativeExpression.EhDeclarador = addictiveExpression.EhDeclarador;
             if (MultiplicativeExpression(multiplicativeExpression))
             {
                 addictiveExpressionRecH.Cod = multiplicativeExpression.Cod;
                 addictiveExpressionRecH.Place = multiplicativeExpression.Place;
+                addictiveExpressionRecH.EhDeclarador = multiplicativeExpression.EhDeclarador;
                 if (AddictiveExpressionRec(addictiveExpressionRecH, addictiveExpressionRecS))
                 {
                     addictiveExpression.Cod = addictiveExpressionRecS.Cod;
                     addictiveExpression.Place = addictiveExpressionRecS.Place;
+                    addictiveExpression.EhDeclarador = addictiveExpressionRecS.EhDeclarador;
                     return true;
                 }
             }
@@ -2267,43 +2452,54 @@ namespace CCompiler.Common
             if (VerificarToken(TkAddiction))
             {
                 LerToken();
+                multiplicativeExpression.EhDeclarador = addictiveExpressionRecH.EhDeclarador;
                 if (MultiplicativeExpression(multiplicativeExpression))
                 {
                     addictiveExpressionRec1H.Place = GerarTemp();
                     addictiveExpressionRec1H.Cod += EscreverCodigo(addictiveExpressionRecH.Cod);
                     addictiveExpressionRec1H.Cod += EscreverCodigo(multiplicativeExpression.Cod);
                     addictiveExpressionRec1H.Cod += EscreverCodigo("+", addictiveExpressionRec1H.Place, addictiveExpressionRecH.Place, multiplicativeExpression.Place);
+
+                    addictiveExpressionRec1H.EhDeclarador = addictiveExpressionRecH.EhDeclarador;
                     if (AddictiveExpressionRec(addictiveExpressionRec1H, addictiveExpressionRec1S))
                     {
                         addictiveExpressionRecS.Cod = addictiveExpressionRec1S.Cod;
                         addictiveExpressionRecS.Place = addictiveExpressionRec1S.Place;
+                        addictiveExpressionRecS.EhDeclarador = addictiveExpressionRec1S.EhDeclarador;
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else if (VerificarToken(TkSubtraction))
             {
                 LerToken();
+                multiplicativeExpression.EhDeclarador = addictiveExpressionRecH.EhDeclarador;
                 if (MultiplicativeExpression(multiplicativeExpression))
                 {
                     addictiveExpressionRec1H.Place = GerarTemp();
                     addictiveExpressionRec1H.Cod += EscreverCodigo(addictiveExpressionRecH.Cod);
                     addictiveExpressionRec1H.Cod += EscreverCodigo(multiplicativeExpression.Cod);
                     addictiveExpressionRec1H.Cod += EscreverCodigo("-", addictiveExpressionRec1H.Place, addictiveExpressionRecH.Place, multiplicativeExpression.Place);
+
+                    addictiveExpressionRec1H.EhDeclarador = addictiveExpressionRecH.EhDeclarador;
                     if (AddictiveExpressionRec(addictiveExpressionRec1H, addictiveExpressionRec1S))
                     {
                         addictiveExpressionRecS.Cod = addictiveExpressionRec1S.Cod;
                         addictiveExpressionRecS.Place = addictiveExpressionRec1S.Place;
+                        addictiveExpressionRecS.EhDeclarador = addictiveExpressionRec1S.EhDeclarador;
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else
             {
                 addictiveExpressionRecS.Cod = addictiveExpressionRecH.Cod;
                 addictiveExpressionRecS.Place = addictiveExpressionRecH.Place;
+                addictiveExpressionRecS.EhDeclarador = addictiveExpressionRecH.EhDeclarador;
                 return true;
             }
         }
@@ -2313,14 +2509,18 @@ namespace CCompiler.Common
             var primaryExpression = new Campo();
             var multiplicativeExpressionRecH = new Campo();
             var multiplicativeExpressionRecS = new Campo();
+
+            primaryExpression.EhDeclarador = multiplicativeExpression.EhDeclarador;
             if (PostFixExpression(primaryExpression))
             {
                 multiplicativeExpressionRecH.Cod = primaryExpression.Cod;
                 multiplicativeExpressionRecH.Place = primaryExpression.Place;
+                multiplicativeExpressionRecH.EhDeclarador = primaryExpression.EhDeclarador;
                 if (MultiplicativeExpressionRec(multiplicativeExpressionRecH, multiplicativeExpressionRecS))
                 {
                     multiplicativeExpression.Cod = multiplicativeExpressionRecS.Cod;
                     multiplicativeExpression.Place = multiplicativeExpressionRecS.Place;
+                    multiplicativeExpression.EhDeclarador = multiplicativeExpressionRecS.EhDeclarador;
                     return true;
 
                 }
@@ -2337,61 +2537,75 @@ namespace CCompiler.Common
             if (VerificarToken(TkMultiplication))
             {
                 LerToken();
+
+                primaryExpression.EhDeclarador = multiplicativeExpressionRecH.EhDeclarador;
                 if (PostFixExpression(primaryExpression))
                 {
                     multiplicativeExpressionRec1H.Place = GerarTemp();
                     multiplicativeExpressionRec1H.Cod += EscreverCodigo(multiplicativeExpressionRecH.Cod);
                     multiplicativeExpressionRec1H.Cod += EscreverCodigo(primaryExpression.Cod);
                     multiplicativeExpressionRec1H.Cod += EscreverCodigo("*", multiplicativeExpressionRec1H.Place, multiplicativeExpressionRecH.Place, primaryExpression.Place);
+                    multiplicativeExpressionRec1H.EhDeclarador = multiplicativeExpressionRecH.EhDeclarador;
                     if (MultiplicativeExpressionRec(multiplicativeExpressionRec1H, multiplicativeExpressionRec1S))
                     {
                         multiplicativeExpressionRecS.Cod = multiplicativeExpressionRec1S.Cod;
                         multiplicativeExpressionRecS.Place = multiplicativeExpressionRec1S.Place;
+                        multiplicativeExpressionRecS.EhDeclarador = multiplicativeExpressionRec1S.EhDeclarador;
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else if (VerificarToken(TkDivision))
             {
                 LerToken();
+                primaryExpression.EhDeclarador = multiplicativeExpressionRecH.EhDeclarador;
                 if (PostFixExpression(primaryExpression))
                 {
                     multiplicativeExpressionRec1H.Place = GerarTemp();
                     multiplicativeExpressionRec1H.Cod += EscreverCodigo(multiplicativeExpressionRecH.Cod);
                     multiplicativeExpressionRec1H.Cod += EscreverCodigo(primaryExpression.Cod);
                     multiplicativeExpressionRec1H.Cod += EscreverCodigo("/", multiplicativeExpressionRec1H.Place, multiplicativeExpressionRecH.Place, primaryExpression.Place);
+                    multiplicativeExpressionRec1H.EhDeclarador = multiplicativeExpressionRecH.EhDeclarador;
                     if (MultiplicativeExpressionRec(multiplicativeExpressionRec1H, multiplicativeExpressionRec1S))
                     {
                         multiplicativeExpressionRecS.Cod = multiplicativeExpressionRec1S.Cod;
                         multiplicativeExpressionRecS.Place = multiplicativeExpressionRec1S.Place;
+                        multiplicativeExpressionRecS.EhDeclarador = multiplicativeExpressionRec1S.EhDeclarador;
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else if (VerificarToken(TkRemainder))
             {
                 LerToken();
+                primaryExpression.EhDeclarador = multiplicativeExpressionRecH.EhDeclarador;
                 if (PostFixExpression(primaryExpression))
                 {
                     multiplicativeExpressionRec1H.Place = GerarTemp();
                     multiplicativeExpressionRec1H.Cod += EscreverCodigo(multiplicativeExpressionRecH.Cod);
                     multiplicativeExpressionRec1H.Cod += EscreverCodigo(primaryExpression.Cod);
                     multiplicativeExpressionRec1H.Cod += EscreverCodigo("%", multiplicativeExpressionRec1H.Place, multiplicativeExpressionRecH.Place, primaryExpression.Place);
+                    multiplicativeExpressionRec1H.EhDeclarador = multiplicativeExpressionRecH.EhDeclarador;
                     if (MultiplicativeExpressionRec(multiplicativeExpressionRec1H, multiplicativeExpressionRec1S))
                     {
                         multiplicativeExpressionRecS.Cod = multiplicativeExpressionRec1S.Cod;
                         multiplicativeExpressionRecS.Place = multiplicativeExpressionRec1S.Place;
+                        multiplicativeExpressionRecS.EhDeclarador = multiplicativeExpressionRec1S.EhDeclarador;
                         return true;
                     }
                 }
+                GerarExcessao(new[] { "expressao" });
                 return false;
             }
             else
             {
                 multiplicativeExpressionRecS.Cod = multiplicativeExpressionRecH.Cod;
                 multiplicativeExpressionRecS.Place = multiplicativeExpressionRecH.Place;
+                multiplicativeExpressionRecS.EhDeclarador = multiplicativeExpressionRecH.EhDeclarador;
                 return true;
             }
         }
@@ -2430,13 +2644,14 @@ namespace CCompiler.Common
         public static bool PostFixExpression(Campo postFixExpression)
         {
             var primaryExpression = new Campo();
+            primaryExpression.EhDeclarador = postFixExpression.EhDeclarador;
             if (PrimaryExpression(primaryExpression))
             {
                 postFixExpression.Place = primaryExpression.Place;
                 postFixExpression.Cod += primaryExpression.Cod;
                 if (IdTokenAtual == TkDoublePlus)
                 {
-                    LerToken();                    
+                    LerToken();
                     postFixExpression.Cod += EscreverCodigo("+", primaryExpression.Place, primaryExpression.Place, "1");
                     return true;
                 }
@@ -2502,7 +2717,15 @@ namespace CCompiler.Common
                     return false;
                 }
 
-                if (!VerificarVariavelTab(primaryExpression.Place)) return false;
+                //if (primaryExpression.EhDeclarador)
+                //{
+                //    if (!AdicionarVariavelTab(primaryExpression.Place, primaryExpression.Tipo)) return false;
+                //}
+                //else
+                //{
+                    if (!VerificarVariavelTab(primaryExpression.Place)) return false;
+                //}
+                    
 
                 return true;
             }

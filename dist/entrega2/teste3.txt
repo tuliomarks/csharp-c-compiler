@@ -1,5 +1,6 @@
+// mostra erro de declaracao
  void teste(int a){
-   a&;
+    b = a+1;
  }
  
  int main(int args = 1, long accc = 2){
@@ -8,6 +9,7 @@
 	
 	return;
  }
+ 
  
  
  
